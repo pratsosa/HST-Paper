@@ -85,28 +85,7 @@ python make_fig1.py --output-dir ./my_figures/
 python make_fig1.py --help
 ```
 
-## Output
-
-Each script generates a PDF figure in the specified output directory with publication-quality resolution (300 DPI). The figures are created with:
-- Proper axis labels and font sizes
-- Legend with sample identification
-- Secondary y-axis showing bolometric luminosity
-- Tight bounding box for easy inclusion in papers
-
-## Contributing
-
-When adding new figures:
-1. Create a new script `make_figX.py` in the `Plotting Code/` folder following the template of `make_fig1.py`
-2. Include proper documentation and command-line arguments
-3. Update this README with usage instructions
-4. Test the script to ensure it runs correctly
 
 ## Contact
 
-For questions or issues, please contact the paper authors or open an issue in the repository.
-
-## Citation
-
-If you use this code or data, please cite the associated paper:
-
-[Citation information to be added upon publication]
+For questions or issues, please contact Alexandros Pratsos or open an issue in the repository.
