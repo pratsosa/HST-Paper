@@ -22,14 +22,14 @@ import os
 import argparse
 import pandas as pd
 import numpy as np
-from scipy import stats
-from scipy.ndimage import gaussian_filter
-from scipy.interpolate import RegularGridInterpolator
 import matplotlib.pyplot as plt
 import palettable
 import richardsplot as rplot
 from astropy.cosmology import FlatLambdaCDM
 from astropy.table import Table
+
+# Import shared plotting utilities
+from plotting_utils import plot_contour
 
 # Initialize cosmology
 cosmo = FlatLambdaCDM(Om0=0.3, H0=70)
@@ -37,67 +37,6 @@ cosmo = FlatLambdaCDM(Om0=0.3, H0=70)
 # Configure matplotlib parameters
 plt.rcParams['xtick.top'] = True
 plt.rcParams['ytick.right'] = True
-
-
-def plot_contour_fast2(xdata, ydata, c="k", mark=".", nlevels=3, ax=None,
-                       linewidths=0.5, s=3, alpha=1, label=None):
-    """
-    Plot density contours with scatter points for low-density regions.
-    
-    Parameters:
-    -----------
-    xdata, ydata : array-like
-        Data coordinates
-    c : str or color
-        Color for contours and points
-    mark : str
-        Marker style for scatter points
-    nlevels : int or list
-        Number or list of density levels for contours
-    ax : matplotlib axis
-        Axis to plot on (default: current axis)
-    linewidths : float
-        Width of contour lines
-    s : float
-        Size of scatter points
-    alpha : float
-        Transparency of scatter points
-    label : str
-        Label for legend
-    """
-    if ax is None:
-        ax = plt.gca()
-
-    dx = 0.1 * (xdata.max() - xdata.min())
-    dy = 0.1 * (ydata.max() - ydata.min())
-
-    xmin, xmax = xdata.min() - dx, xdata.max() + dx
-    ymin, ymax = ydata.min() - dy, ydata.max() + dy
-
-    X, Y = np.mgrid[xmin:xmax:60j, ymin:ymax:60j]
-    positions = np.vstack([X.ravel(), Y.ravel()])
-    values = np.vstack([xdata, ydata])
-
-    kernel = stats.gaussian_kde(values, bw_method=0.2)
-    Z = kernel(positions).reshape(X.shape)
-
-    Z = gaussian_filter(Z, sigma=1.0)  # enforce smooth topology
-    Z /= Z.max()                       # normalize safely
-
-    cs = ax.contour(X, Y, Z, levels=nlevels,
-                    linewidths=linewidths, colors=[c])
-    levels = cs.levels
-
-    interp = RegularGridInterpolator(
-        (X[:, 0], Y[0, :]), Z,
-        bounds_error=False, fill_value=Z.min()
-    )
-
-    z = interp(np.column_stack((xdata, ydata)))
-    mask = z > levels[0]
-
-    ax.scatter(xdata[~mask], ydata[~mask],
-               s=s, color=c, marker=mark, alpha=alpha, label=label)
 
 
 def L2500_to_Lbol(L2500):
@@ -266,11 +205,11 @@ def create_figure(hst_data, sdss_data, gnirs_data, data_version='rankine'):
     
     # Plot SDSS sample with density contours
     print(f"Plotting SDSS data ({data_version} version)...")
-    plot_contour_fast2(sdss_data['z'], sdss_data['logL'], 
-                       c=cs[2], mark="o", 
-                       nlevels=[0.05, 0.25, 0.50, 0.75, 0.95], 
-                       ax=ax, linewidths=1.5, s=3, alpha=0.4, 
-                       label="SDSS")
+    plot_contour(sdss_data['z'], sdss_data['logL'], 
+                 c=cs[2], mark="o", 
+                 nlevels=[0.05, 0.25, 0.50, 0.75, 0.95], 
+                 ax=ax, linewidths=1.5, s=3, alpha=0.4, 
+                 label="SDSS")
     
     # Plot GNIRS-DQS
     ax.plot(gnirs_data['z'], gnirs_data['logL'], 
@@ -327,7 +266,12 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(script_dir)  # Go up to HST Paper directory
     data_dir = os.path.join(parent_dir, 'Data')
-    output_dir = os.path.join(parent_dir, args.output_dir)
+    
+    # Handle relative output directory path
+    if args.output_dir.startswith('..'):
+        output_dir = os.path.join(parent_dir, args.output_dir)
+    else:
+        output_dir = os.path.join(parent_dir, args.output_dir)
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
