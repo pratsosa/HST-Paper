@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "hst_civ_paper"
+version = "0.1.0"
+description = "Rebinning and ICA analysis pipeline for HST quasar CIV spectroscopy paper"
+authors = [
+    { name = "Alexandros Pratsos" },
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "astropy",
+    "lmfit",
+    "weightedstats",
+    "palettable",
+    "richardsplot",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rebinning*", "ica*"]

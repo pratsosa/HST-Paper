@@ -26,3 +26,8 @@ Thumbs.db
 # Output (comment out if you want to track generated figures)
 # Figures/*.pdf
 # Figures/*.png
+
+# Pipeline output directories (large; not committed)
+RebinnedSpec_*/
+ICA_Plots_*/
+ICA_full/
