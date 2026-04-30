@@ -111,6 +111,25 @@ python -m rebinning.run_rebin --data-dir $HST_PAPER_DATA_DIR
 
 ---
 
+## Known Issues
+
+### Two diverged versions of `spec_morph.py`
+
+There are **two separate `spec_morph.py` files** in this repo, one per pipeline:
+
+| File | Used by | Source |
+|------|---------|--------|
+| `rebinning/spec_morph.py` | Rebinning pipeline (`coadd.py`) | `Trevor Code/spec_morph.py` |
+| `ica/spec_morph.py` | ICA pipeline (`run_ica.py`) | `Trevor Code/ICA Scripts/spec_morph.py` |
+
+They diverged from a common base. Key differences: the rebinning version has AP's
+defensive `cont_filtered()` fixes; the ICA version uses a different `continuum_fit()`
+signature and `np.polynomial` fitting. **If you fix a bug in one, check whether the
+other needs the same fix.** See `Migration_Log.md` → "Known Issues" for full details
+and future fix options.
+
+---
+
 ## Critical Dependencies
 
 ```python
