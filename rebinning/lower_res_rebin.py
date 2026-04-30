@@ -39,7 +39,7 @@ def HSTLowResRebin(wavelength, flux, flux_error, masks, Identifier, z):
     sdss_wave = 10.**(sdss_loglam)
 
     #Create empty wavelength array with all possible wavelengths we might deal with
-    wave_empty = np.arange(1000., 10000.+sdss_c1, sdss_c1)
+    # wave_empty = np.arange(1000., 10000.+sdss_c1, sdss_c1)  # AP 2026-04-30: dead code — never read after creation; removed to avoid 687 MiB allocation
 
     #Number of SDSS pixels separating sdss_c0 and start/end of HST spectrum
     if (wavelength==0).all():

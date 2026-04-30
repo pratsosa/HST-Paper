@@ -160,7 +160,36 @@ are fully understood.
 
 ## Phase 3 — Integration Testing
 
-*(not yet started)*
+**Date:** 2026-04-30
+
+### Bug fixed: dead `wave_empty` allocation in `lower_res_rebin.py`
+
+**File:** `rebinning/lower_res_rebin.py` (line 42)
+
+**Error:** `numpy.core._exceptions._ArrayMemoryError: Unable to allocate 687. MiB for an array with shape (90000001,) and data type float64`
+
+**Root cause:** `HSTLowResRebin()` contained the line:
+```python
+wave_empty = np.arange(1000., 10000.+sdss_c1, sdss_c1)
+```
+`sdss_c1 ≈ 0.0001` (SDSS log-lambda spacing), making the array 90,000,001 elements (687 MiB). **This variable is never read again** — it is dead code in both the original `LowerResHSTRebin_TVM.py` and the migrated file. The 2026AP run presumably succeeded because more RAM was free at that time. STIS objects (smaller data footprint) happened to leave enough memory; HSLA coadd files (larger) did not.
+
+**Fix:** Commented out the dead line:
+```python
+# wave_empty = np.arange(...)  # AP 2026-04-30: dead code — never read; removed to avoid 687 MiB allocation
+```
+
+**Scope:** No algorithmic change. `wave_empty` was created and discarded immediately in the original code. Removing it does not affect any output.
+
+**Note:** The same dead line exists in the original `Trevor Code/LowerResHSTRebin_TVM.py`. It is NOT fixed there (per the policy of keeping Trevor Code untouched). The migrated version is now strictly better than the original on this point.
+
+### Test objects run successfully
+
+| Instrument | Object | Status |
+|------------|--------|--------|
+| FOS | J04232-0120 | OK |
+| STIS | J07086-4933 | OK |
+| HSLA | 1H1613-097 | OK (after fix above) |
 
 ---
 
