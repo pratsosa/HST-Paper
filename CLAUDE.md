@@ -151,10 +151,10 @@ for the running log of completed work.
 | Phase | Description              | Status        |
 |-------|--------------------------|---------------|
 | 0     | Project scaffolding      | Complete      |
-| 1     | Rebinning pipeline       | Not started   |
-| 2     | ICA pipeline             | Not started   |
-| 3     | Integration testing      | Not started   |
-| 4     | Documentation            | Not started   |
+| 1     | Rebinning pipeline       | Complete      |
+| 2     | ICA pipeline             | Complete      |
+| 3     | Integration testing      | Complete      |
+| 4     | Documentation            | Complete      |
 | 5     | Connect to master pipeline | Future      |
 
 ---

@@ -195,7 +195,19 @@ wave_empty = np.arange(1000., 10000.+sdss_c1, sdss_c1)
 
 ## Phase 4 — CLAUDE.md and Documentation
 
-*(not yet started)*
+**Date:** 2026-05-01
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `CLAUDE.md` | Migration status table updated: phases 1, 2, 3 marked Complete |
+| `README.md` | Full rewrite: now covers complete pipeline (rebinning → ICA → plotting), installation, data setup, and all CLI options. Previous version covered plotting figures only. |
+| `requirements.txt` | Added `lmfit>=1.0.0` and `weightedstats>=0.4.0` to match `pyproject.toml` dependencies |
+
+### Notes
+- `QUICKSTART.md` retained as-is (still accurate for the plotting-only quick start path)
+- `CLAUDE.md` required no structural changes beyond the status table
 
 ---
 
