@@ -73,13 +73,14 @@ _SDSS_REF_SPEC = Path(__file__).parent.parent / "Data" / "spec-0266-51630-0080.f
 
 
 def rebin(Identifier, z, data_origin, fn_sdss, data_path=None,
-          output_dir="RebinnedSpec", sdss_spec_dir=None):
+          output_dir="RebinnedSpec", sdss_spec_dir=None, flat=False):
     #Identifier: string; name of object; helps you find files
     #z: redshift; float; recorded by TVM (i.e. not updated by Paul)
     #data_origin: string; HST instrument, HSLA, Gordon/Angelica DR7 targets, SDSS-RM, GNIRS-DQS
     #fn_sdss: string; spec-PPPP-MMMMM-FFFF.fits plate/mjd/fiber SDSS name
     #output_dir: string; directory to write rebinned FITS output
     #sdss_spec_dir: string; root directory containing SDSS spec files (required if fn_sdss is not None)
+    #flat: bool; if True, use flat-layout readers (MAST download structure, no NecessaryParams.csv)
 
     #Initial Instrument-dependent imports
     if data_origin == "FOS":
@@ -96,7 +97,10 @@ def rebin(Identifier, z, data_origin, fn_sdss, data_path=None,
         # MorphingEdges_HSLA — vestigial import; not called in this file (Phase 2)
 
     #read the data should be the same as before; only free parameter is the instrument/origin of data
-    waves, fluxes, flux_errs, masks = read_spec_data.read_data(Identifier, data_path, data_origin, z)
+    if flat:
+        waves, fluxes, flux_errs, masks = read_spec_data.read_data_flat(Identifier, data_path, data_origin, z)
+    else:
+        waves, fluxes, flux_errs, masks = read_spec_data.read_data(Identifier, data_path, data_origin, z)
 
     """
     Step 1: Get a smoothed "median" flux and fluxerr spectrum.

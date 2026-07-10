@@ -91,6 +91,17 @@ def HSTLowResRebin(wavelength, flux, flux_error, masks, Identifier, z):
         wave1, flux1, fluxerr1 = wavelength[arg1], flux[arg1], flux_error[arg1]
         wave2, flux2, fluxerr2 = wavelength[arg2], flux[arg2], flux_error[arg2]
 
+        # AP 2026-06-01: guard against NaN flux reaching np.polyfit (causes MKL LinAlgError).
+        # Cut_Edge_Pix sets trailing-edge flux to NaN but leaves wavelengths non-zero, so the
+        # rebinned grid can extend into that NaN tail. polyfit passes NaN to LAPACK → crash.
+        # Mark these pixels bad and skip; error=0 gives weight=inf→0 in the co-add, so they
+        # are silently excluded. See Migration_Log.md Phase 5 for root cause and Option B.
+        if not (np.isfinite(flux1) and np.isfinite(flux2)):
+            flux_HST_rebin[i]    = np.nan
+            fluxerr_HST_rebin[i] = 0.
+            masks_HST_rebin[i]   = 1
+            continue
+
         #Since there are effectively fewer photons captured in each
         #wavelength bin, the S/N should decrease by a factor of sqrt(old_width/new_width)
         old_width = lambdaEdgesSTIS[arg1+1] - lambdaEdgesSTIS[arg1] #old pixel width is that of nearest HST pixel

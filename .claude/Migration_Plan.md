@@ -265,35 +265,245 @@ HST Paper/
 
 ---
 
-## Phase 5 — Connect to Master Pipeline (future, loosely defined)
+## Phase 5 — Connect to Master Pipeline
 
-**Goal:** Wire the v21 master pipeline output to the rebinning entry point.
+**Goal:** Download calibrated HST spectra from MAST for every object in
+`master_catalog_v21.csv` where `has_civ=True`, then wire the downloaded
+files into the existing rebinning pipeline.
 
-### What We Know
+### Context
 
-- `HST_SDSS_Master_Pipeline_v21_script.py` outputs
-  `pipeline_output/master_catalog_v21.csv` — a catalog of observations
-  queried from MAST, with coordinates, instruments, redshifts, etc.
-- It does **not** download the actual FITS files.
-- A data download step is needed (to be added to v21 or as a bridge script).
-- Once data is downloaded into an organized folder structure, `run_rebin.py`
-  needs to be updated to read from it instead of from Trevor's
-  `SulenticAllData/` layout.
+`HST_SDSS_Master_Pipeline_v21_script.py` (Richards) outputs
+`pipeline_output/master_catalog_v21.csv` — a metadata catalog of MAST
+observations (coordinates, instruments, redshifts, CIV coverage flag).
+It queries MAST via `astroquery.mast.Observations.query_criteria()` but
+never downloads actual FITS files.  The individual `obs_id` values
+present in the per-instrument cache CSVs (`v21_cache_mast_cos.csv`,
+`v21_cache_mast_stis.csv`, `v21_cache_mast_fos.csv`) are aggregated away
+in the master catalog, so the download step must re-query MAST by sky
+coordinates to recover them.
 
-### Steps (to be detailed later)
+We want **individual calibrated exposures** (`calib_level` 2 or 3), not
+HASP/HLSP co-added products (`calib_level` 4).  Richards' v21 script
+does not filter by `calib_level` in its queries (it retains the column
+but applies no cut), so the level choice is entirely ours in the download
+step.
 
-5.1. Define the download folder structure with Prof. Richards.
+**Environment:** run under the `hasp-env` conda environment, which has
+`astroquery` installed.
 
-5.2. Write or extend the pipeline to download FITS files from MAST
-     into the defined structure.
+---
 
-5.3. Write a bridge module that reads `master_catalog_v21.csv` and
-     produces the inputs that `run_rebin.py` expects (object name,
-     redshift, instrument, SDSS spec path, data path).
+### New files introduced in this phase
 
-5.4. End-to-end test: pipeline → download → rebin → ICA → plots.
+```
+HST Paper/
+├── pipeline/
+│   ├── __init__.py
+│   ├── download_spectra.py    # main download script (Step 5.2)
+│   └── catalog_bridge.py     # catalog → rebinning adapter (Step 5.3)
+└── rebinning/
+    └── run_rebin.py           # updated with --catalog CLI arg (Step 5.4)
+```
 
-5.5. **Commit:** "Phase 5: connect to master pipeline"
+---
+
+### Downloaded data folder structure
+
+```
+RAW_DATA_DIR/              # configurable; default HST_PAPER_DATA_DIR env var
+└── {common_name}/         # e.g. "3C273", "Fairall9"
+    ├── COS/
+    │   └── {obs_id}_x1d.fits
+    ├── STIS/
+    │   └── {obs_id}_x1d.fits
+    └── FOS/
+        └── {obs_id}.c1h.fits
+```
+
+`common_name` is taken directly from the `common_name` column of
+`master_catalog_v21.csv` (already cleaned by Richards in Cell 13).
+The per-instrument sub-folder (`COS/`, `STIS/`, `FOS/`) matches each
+observation's `inst_family` tag used throughout the v21 pipeline.
+
+---
+
+### Steps
+
+**5.1. Create `pipeline/` package**
+
+Create `HST Paper/pipeline/__init__.py` (empty).
+
+---
+
+**5.2. Write `pipeline/download_spectra.py`**
+
+This script is modelled directly on Richards' v21 script:
+- Imports and constants copied verbatim from Cell 1 (paths, `MATCH_SEP`,
+  `DEDUP_SEP`, etc.) and adapted for the `HST Paper/` package layout.
+- Obs-id recovery uses Richards' cache files directly (Cells 2–3 output)
+  rather than re-querying MAST, guaranteeing we use exactly the same
+  observations Richards identified.
+
+**Script structure (cells / sections):**
+
+```
+Section 1 — Imports and configuration
+    astroquery.mast.Observations
+    CATALOG_PATH    = pipeline_output/master_catalog_v21.csv
+    RAW_DATA_DIR    = env var HST_PAPER_DATA_DIR  (CLI override: --data-dir)
+    CACHE_COS       = pipeline_output/v21_cache_mast_cos.csv   (Richards Cell 2)
+    CACHE_STIS      = pipeline_output/v21_cache_mast_stis.csv  (Richards Cell 3)
+    CACHE_FOS       = pipeline_output/v21_cache_mast_fos.csv   (Richards Cell 3)
+    DEDUP_SEP       = 2.0 arcsec  (same value Richards uses in Cell 4)
+    CALIB_LEVELS    = [2, 3]
+    PRODUCT_FILTERS per instrument:
+        COS  → productSubGroupDescription in ['X1D', 'X1DSUM']
+        STIS → productSubGroupDescription in ['X1D', 'SX1']
+        FOS  → productType == 'SCIENCE', calib_level in [2, 3]
+               (FOS uses non-standard subgroup names; filter by type+level)
+
+Section 2 — Load catalog
+    Read master_catalog_v21.csv.
+    Filter to has_civ == True.
+    Report N objects.
+
+Section 3 — Recover obs_ids from Richards' cache files
+    Load CACHE_COS, CACHE_STIS, CACHE_FOS.
+    Stack into a single obs_df; tag each row with inst_family ('COS'/'STIS'/'FOS').
+    For each has_civ object (ra_deg, dec_deg, common_name):
+        Spatially cross-match against obs_df using DEDUP_SEP (same as Cell 4).
+        Collect all obs_df rows within DEDUP_SEP → these are Richards' obs_ids
+        for this object.
+        Tag matched rows with common_name.
+    Filter matched rows to calib_level in CALIB_LEVELS.
+    Warn for any has_civ object with zero matched obs_ids.
+    Result: obs_df_matched — one row per (common_name, obs_id).
+
+    *** Verification A — object-level completeness (pre-download) ***
+    catalog_names = set(catalog[has_civ].common_name)
+    matched_names = set(obs_df_matched.common_name)
+    missing = catalog_names - matched_names   # has_civ objects with no obs_ids
+    extra   = matched_names - catalog_names   # should always be empty
+    Print: N matched, N missing, N extra.
+    Raise a warning (not an error) if missing is non-empty so the user
+    can investigate before committing to the download.
+    Script continues only when missing is empty or user passes --force.
+
+Section 4 — Get product lists (with caching)
+    PROD_CACHE = pipeline_output/v21_cache_download_products.csv
+    If PROD_CACHE exists: load it.
+    Else: for each unique obs_id in obs_df_matched:
+        products = Observations.get_product_list(obs_id)
+        tag with common_name, inst_family
+        append to prod_rows list
+    Filter product list:
+        productType == 'SCIENCE'
+        calib_level in CALIB_LEVELS
+        productSubGroupDescription matches per-instrument filter above
+    Save filtered products to PROD_CACHE.
+
+Section 5 — Download
+    for each common_name:
+        sub = filtered products for this object
+        for inst in ['COS', 'STIS', 'FOS']:
+            inst_sub = sub rows for this instrument
+            if empty: skip
+            dest = RAW_DATA_DIR / common_name / inst
+            dest.mkdir(parents=True, exist_ok=True)
+            Observations.download_products(
+                inst_sub,
+                download_dir=str(dest),
+                flat=True,          # no extra nested subdirs
+            )
+    Print per-object download summary (N files, total MB).
+
+Section 6 — Download manifest and verification
+    Write pipeline_output/download_manifest.csv:
+        common_name | inst_family | obs_id | filename | file_size_mb | status
+
+    *** Verification B — object-level completeness (post-download) ***
+    downloaded_names = set(manifest[manifest.status == 'ok'].common_name)
+    missing_after    = catalog_names - downloaded_names
+    Print: N successfully downloaded, N missing.
+    If missing_after is non-empty: list the object names explicitly so
+    they can be investigated or re-run individually.
+
+    Used by catalog_bridge.py to build the input list for run_rebin.py.
+```
+
+---
+
+**5.3. Write `pipeline/catalog_bridge.py`** ✓ *Complete — 2026-05-02*
+
+Reads `master_catalog_v21.csv` and `download_manifest.csv`, then
+produces the per-object input dict that `rebinning/run_rebin.py` expects:
+
+```python
+{
+    'name':       common_name,
+    'redshift':   best_z,
+    'instrument': inst_family,          # 'COS', 'STIS', 'FOS'
+    'data_path':  RAW_DATA_DIR / common_name / inst_family,
+}
+```
+
+Key logic:
+- One dict per (common_name, inst_family) pair (multi-instrument objects
+  produce multiple entries, matching how the existing pipeline handles
+  e.g. FOS+STIS objects).
+- Validates that `data_path` exists and contains at least one FITS file;
+  warns and skips if not.
+- Returns a list of dicts; callers can iterate directly or pass to
+  `run_rebin.py`.
+
+Implementation notes (2026-05-02):
+- `master_catalog_v21.csv` carries no SDSS plate/MJD/fiber columns, so
+  `fn_sdss=None` for all objects when `coadd.rebin()` is called. SDSS
+  coadding is not supported for master-catalog objects at this stage.
+- `download_spectra.py` is NOT imported by `catalog_bridge.py` (to avoid
+  pulling in the `astroquery` dependency at rebin time); the two files
+  define their own `CATALOG_PATH` / `MANIFEST_PATH` constants independently.
+- No quality classification (`Good`/`Bad`/`Probably Good`) is used.
+  The old `ICA_full/` folder categories apply only to the Sulentic-2007
+  sample; new objects from the master catalog have no such category, and
+  the ICA pipeline must run on all objects without pre-filtering by quality.
+- The old Sulentic catalog (`HST_CIV_Sulentic2007_HSLA2018_finalprops.csv`)
+  is obsolete for all new pipeline runs; `master_catalog_v21.csv` is the
+  sole source of object metadata from Phase 5 onward.
+
+---
+
+**5.4. Update `rebinning/run_rebin.py` with `--catalog` CLI argument**
+
+Add a `--catalog` argument (path to `master_catalog_v21.csv`) alongside
+`--data-dir`.  When `--catalog` is supplied, the runner calls
+`catalog_bridge.build_object_list()` instead of reading from the
+hardcoded Trevor path layout.  The existing hardcoded path logic remains
+as a fallback so the Phase 3 integration tests are not broken.
+
+No changes to any algorithm logic — only the object-list construction
+at the top of the runner is affected.
+
+---
+
+**5.5. Log all changes to `Migration_Log.md`.**
+
+---
+
+**5.6. End-to-end smoke test**
+
+Run on 3–5 representative objects (one FOS-only, one STIS-only, one
+COS-only, one multi-instrument) and confirm:
+- Files download to the correct folder structure.
+- `catalog_bridge.py` produces valid input dicts for each.
+- `run_rebin.py --catalog ... --data-dir ...` completes without error.
+- Output FITS files in `RebinnedSpec_*/` are plausible (non-zero flux,
+  correct wavelength range for the object's redshift).
+
+---
+
+**5.7. Commit:** `"Phase 5: download pipeline and catalog bridge"`
 
 ---
 

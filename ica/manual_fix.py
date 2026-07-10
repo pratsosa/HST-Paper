@@ -22,6 +22,7 @@ based on configuration settings. It replaces the ad-hoc approach in Manual Objec
 from pathlib import Path
 import json
 import glob
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -49,14 +50,20 @@ warnings.filterwarnings('ignore')
 
 OUTPUT_PATH = "ICA_Plots_Rebin_AP"
 # REBIN_PATH = "RebinnedSpec_2022Aug11"
-REBIN_PATH = "RebinnedSpec_2026AP"
+# REBIN_PATH = "RebinnedSpec_2026AP"   ← old default; now a constructor arg
+_DEFAULT_REBIN_PATH = os.environ.get("HST_PAPER_REBIN_DIR", "RebinnedSpec_2026AP")
 
 class ICAManualFixProcessor:
     """
     Main class for processing objects with manual ICA fixes
     """
     
-    def __init__(self, catalog_file=None):
+    # Plot subfolder used for every object in master mode (the Good/Bad/Fixable/
+    # "Probably Good" quality classification only exists for the 207 Sulentic objects).
+    _MASTER_FOLDER = "All"
+
+    def __init__(self, catalog_file=None, rebin_path=None, master_mode=False,
+                 output_path=None):
         """
         Initialize the processor with catalog data
 
@@ -65,6 +72,22 @@ class ICAManualFixProcessor:
         catalog_file : str or None
             Path to the CSV file containing object information.
             Defaults to Data/HST_CIV_Sulentic2007_HSLA2018_finalprops.csv in repo root.
+        rebin_path : str or None
+            Directory containing rebinned FITS files to run ICA on.
+            Defaults to HST_PAPER_REBIN_DIR env var, then "RebinnedSpec_2026AP".
+            Use "RebinnedSpec_master" for spectra rebinned from master_catalog_v21.csv.
+        master_mode : bool
+            If True, drive object selection from the FITS files in rebin_path
+            (named {common_name}_{inst}.fits, e.g. from master_catalog_v21.csv)
+            instead of the Sulentic catalog. The object name is the FITS filename
+            stem; redshift is read from each FITS file; and morphing-edges /
+            CIV-BAL / manual-fix overrides (all keyed on old Sulentic Spec_Names)
+            are skipped for objects not present in those dicts. Diagnostic plots
+            are saved into a single "All" subfolder rather than quality folders.
+        output_path : str or None
+            Directory to write diagnostic plots into. Defaults to the module-level
+            OUTPUT_PATH ("ICA_Plots_Rebin_AP"). run_all_objects passes a separate
+            directory in master mode to avoid clobbering Sulentic-run plots.
         """
         if catalog_file is None:
             catalog_file = str(_DATA_DIR / "HST_CIV_Sulentic2007_HSLA2018_finalprops.csv")
@@ -73,14 +96,38 @@ class ICAManualFixProcessor:
         self.names_spec = self.dat["Spec_Name"].values
         self.inst_final = self.dat["Inst_final"].values
 
+        self.rebin_path = rebin_path if rebin_path is not None else _DEFAULT_REBIN_PATH
+        self.master_mode = master_mode
+        self.output_path = output_path if output_path is not None else OUTPUT_PATH
+
         # Clean up names (remove spaces)
         for i in range(len(self.names)):
             self.names[i] = "".join(self.names[i].split(" "))
 
-        # Load quality classification map (replaces runtime os.listdir of ICA_full/)
+        # Load quality classification map (replaces runtime os.listdir of ICA_full/).
+        # Unused in master mode (objects are not classified), but cheap to load.
         with open(_QUALITY_JSON) as f:
             self.quality_map = json.load(f)
-    
+
+    def list_master_objects(self):
+        """
+        Return the list of object identifiers to process in master mode: the
+        FITS filename stems ({common_name}_{inst}) of every .fits file in
+        rebin_path. One entry per spectrum, so multi-instrument objects yield
+        one identifier per instrument (each fit independently).
+        """
+        files = sorted(glob.glob(os.path.join(self.rebin_path, "*.fits")))
+        return [os.path.splitext(os.path.basename(f))[0] for f in files]
+
+    def _ensure_output_dirs(self):
+        """Create the plot output directory and its subfolders for the active mode."""
+        os.makedirs(self.output_path, exist_ok=True)
+        if self.master_mode:
+            os.makedirs(os.path.join(self.output_path, self._MASTER_FOLDER), exist_ok=True)
+        else:
+            for sub in ("Probably Good", "Good", "Fixable", "Bad"):
+                os.makedirs(os.path.join(self.output_path, sub), exist_ok=True)
+
     def get_folder(self, name):
         """
         Get the quality folder for a specific object from quality_classification.json.
@@ -94,8 +141,11 @@ class ICAManualFixProcessor:
         Returns:
         --------
         str
-            Folder name ('Good', 'Bad', 'Fixable', 'Probably Good')
+            Folder name ('Good', 'Bad', 'Fixable', 'Probably Good'), or the
+            single "All" folder in master mode (objects are unclassified).
         """
+        if self.master_mode:
+            return self._MASTER_FOLDER
         folder = self.quality_map.get(name)
         if folder is None:
             raise Exception(f'Object "{name}" not found in quality_classification.json')
@@ -170,13 +220,25 @@ class ICAManualFixProcessor:
             Processed spectral data
         """
         name_final = name
-        index = np.where(self.names == name_final)[0][0]
-        spec_name = self.names_spec[index]
-        inst = self.inst_final[index]
+        if self.master_mode:
+            # Master mode: the identifier IS the FITS filename stem
+            # ({common_name}_{inst}). No Sulentic catalog lookup; redshift is
+            # read from the FITS below. spec_name = stem, so the morphing-edges
+            # and CIV-BAL dicts (keyed on old Sulentic Spec_Names) simply do not
+            # match new master objects and are skipped.
+            spec_name = name
+            fn = os.path.join(self.rebin_path, name + ".fits")
+            if not os.path.exists(fn):
+                raise FileNotFoundError(
+                    f'No rebinned FITS for "{name}" in {self.rebin_path}')
+        else:
+            index = np.where(self.names == name_final)[0][0]
+            spec_name = self.names_spec[index]
+            inst = self.inst_final[index]
 
-        fn_list = glob.glob("%s/%s*%s.fits"%(REBIN_PATH, spec_name, inst))
-        fn = fn_list[0]
-        
+            fn_list = glob.glob("%s/%s*%s.fits"%(self.rebin_path, spec_name, inst))
+            fn = fn_list[0]
+
         spec = fits.open(fn)
         # Print the column names for debugging
         print(f'File column names: {spec[1].data.columns}') # Debugging line
@@ -377,7 +439,7 @@ class ICAManualFixProcessor:
             
             # plt.savefig(f'ICA_Plots_Refactored/{spec_name}_{config_type}.png', dpi=150)
             print(f'Spec_name is {spec_name}')
-            plt.savefig(f'{OUTPUT_PATH}/{self.get_folder(spec_name)}/{spec_name}_{config_type}.png', dpi=150)
+            plt.savefig(f'{self.output_path}/{self.get_folder(spec_name)}/{spec_name}_{config_type}.png', dpi=150)
         if show:
             plt.show()
     
@@ -463,8 +525,8 @@ class ICAManualFixProcessor:
         
         # Run ICA analysis
         wave_arb, flux_arb, errs_arb, mask_arb, wave_ica, flux_ica, f2500_ica = \
-            run_ICA_r20_components.main_ICA(wave_orig, flux_orig, errs_orig, mask_orig, z, 
-                                           name="", ica_path="", comps_use=comps_use)
+            run_ICA_r20_components.main_ICA(wave_orig, flux_orig, errs_orig, mask_orig, z,
+                                           name="", ica_path=None, comps_use=comps_use)
         
         # Extract CIV parameters
         CIV_blue, CIV_EW = self.get_CIV_parameters(wave_arb, flux_arb, wave_ica, flux_ica, name)
@@ -486,12 +548,8 @@ class ICAManualFixProcessor:
         
         # Create diagnostic plots if requested
         if save_plot:
-            os.makedirs(OUTPUT_PATH, exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Probably Good', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Good', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Fixable', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Bad', exist_ok=True)
-        
+            self._ensure_output_dirs()
+
         if plot or save_plot:
             self.create_diagnostic_plot(wave_arb, flux_arb, errs_arb, mask_arb, 
                                        wave_ica, flux_ica, name, spec_name, CIV_blue, CIV_EW, 
@@ -525,11 +583,7 @@ class ICAManualFixProcessor:
         
         # Create output directory for plots if needed
         if save_plots:
-            os.makedirs(OUTPUT_PATH, exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Probably Good', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Good', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Fixable', exist_ok=True)
-            os.makedirs(f'{OUTPUT_PATH}/Bad', exist_ok=True)
+            self._ensure_output_dirs()
         all_results = []
         
         for obj_name in object_list:

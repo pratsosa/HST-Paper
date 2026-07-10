@@ -31,3 +31,6 @@ Thumbs.db
 RebinnedSpec_*/
 ICA_Plots_*/
 ICA_full/
+
+# Raw Data Directory
+raw_data/
