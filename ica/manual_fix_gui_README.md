@@ -29,9 +29,16 @@ The object list is every FITS stem in `--rebin-dir` (master mode, same as
 - **Pick an object**: dropdown (type to search) or ◀ / ▶. Selecting an object
   auto-fits it (~5–10 s; the window stays responsive — fits run off-thread).
 - **Zoom/pan**: the standard matplotlib toolbar (left-drag box zoom, pan, home).
-- **Mask a region**: **right-drag** on the full-spectrum or CIV panel. It appears
-  in the *Mask ranges* list (remove individually or clear all). Masks are shaded
-  orange but only take effect on the next **Re-fit**.
+- **Mask a region**: **right-drag** on the full-spectrum or CIV panel, or type in
+  the text box (`1548.5` = nearest pixel; `1548.5 1549.2` = several; `1530-1545` =
+  a range). Entries appear in the mask list (remove individually or clear all).
+  Masks are shaded orange but only take effect on the next **Re-fit**.
+- **Unmask (force-include) a pixel the pipeline masked** — e.g. a spurious NAL
+  flag: tick **Unmask mode** and use the same text box / right-drag. Unmask entries
+  show green (dashed line / light-green band). On Re-fit the pipeline runs normally,
+  then the fit is re-run once more with those pixels cleared from the NAL/BAL mask.
+  Unmasking is skipped entirely when the list is empty, so ordinary fits stay
+  byte-identical to the batch pipeline.
 - **Force components**: `auto` (χ²-selected, default) / `mod` / `low` / `high`.
 - **Re-fit**: re-runs the pipeline with the current mask + components. Your zoom
   is preserved across the refit.

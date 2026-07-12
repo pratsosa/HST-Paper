@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -43,7 +44,9 @@ from matplotlib.backends.backend_qtagg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
+
+_UNMASK_COLOR = QtGui.QColor(0, 120, 0)  # list-item text colour for unmask rows
 
 from ica.manual_fix import ICAManualFixProcessor
 from ica import run_ica
@@ -76,9 +79,12 @@ class GuiFixProcessor(ICAManualFixProcessor):
     override. No matplotlib is touched here, so it is safe off the UI thread.
     """
 
-    def fit_for_gui(self, name, mask_ranges=None, mask_pixels=None, comps_use=None):
+    def fit_for_gui(self, name, mask_ranges=None, mask_pixels=None, comps_use=None,
+                    unmask_ranges=None, unmask_pixels=None):
         mask_ranges = mask_ranges or []
         mask_pixels = mask_pixels or []
+        unmask_ranges = unmask_ranges or []
+        unmask_pixels = unmask_pixels or []
 
         # Reload from disk every fit -> guaranteed-clean mask state, no cross-fit
         # mutation bugs. Cheap next to the ~5-10 s fit itself.
@@ -95,6 +101,34 @@ class GuiFixProcessor(ICAManualFixProcessor):
         (wave_arb, flux_arb, errs_arb, mask_arb,
          wave_ica, flux_ica, f2500) = run_ica.main_ICA(
             wave, flux, errs, mask, z, name="", ica_path=None, comps_use=cu)
+
+        # Force-unmask pixels the pipeline masked (NAL/BAL/input bad). Those masks
+        # are recomputed inside main_ICA, so honouring an unmask means re-fitting
+        # with them cleared. We reuse main_ICA's own outputs: flux_arb carries the
+        # *real* (not median-replaced) flux at NAL pixels, which is exactly what we
+        # want at an unmasked pixel; still-masked pixels are ignored either way.
+        # When nothing is unmasked we skip this entirely -> identical to the batch.
+        if unmask_ranges or unmask_pixels:
+            mask_ref = np.asarray(mask_arb, dtype=float).copy()
+            for lo, hi in unmask_ranges:
+                mask_ref[(wave_arb >= lo) & (wave_arb <= hi)] = 0
+            for wl in unmask_pixels:
+                mask_ref[np.argmin(np.abs(wave_arb - wl))] = 0
+
+            wave_ica2, flux_ica2 = run_ica.get_ICA(
+                wave_arb, flux_arb, errs_arb, mask_ref, z,
+                ica_path=None, use_priors=False, comps_use=cu)
+
+            # Rescale f2500 by the original fit's real-unit factor at 2500 A
+            # (norm/morph scaling is fixed by the data, not the fit).
+            i0 = np.argmin(np.abs(wave_ica - 2500.))
+            i2 = np.argmin(np.abs(wave_ica2 - 2500.))
+            if flux_ica[i0]:
+                f2500 = float(flux_ica2[i2] * (f2500 / flux_ica[i0]))
+            wave_ica, flux_ica = wave_ica2, flux_ica2
+            # Show the mask actually used for the fit so unmasked pixels no longer
+            # render as NAL/BAL (they were set to 0 in mask_ref).
+            mask_arb = mask_ref
 
         civ_blue, civ_ew = self.get_CIV_parameters(
             wave_arb, flux_arb, wave_ica, flux_ica, name)
@@ -116,20 +150,24 @@ class _FitSignals(QtCore.QObject):
 
 
 class _FitTask(QtCore.QRunnable):
-    def __init__(self, proc, name, mask_ranges, mask_pixels, comps_use):
+    def __init__(self, proc, name, mask_ranges, mask_pixels, comps_use,
+                 unmask_ranges, unmask_pixels):
         super().__init__()
         self.proc = proc
         self.name = name
         self.mask_ranges = mask_ranges
         self.mask_pixels = mask_pixels
         self.comps_use = comps_use
+        self.unmask_ranges = unmask_ranges
+        self.unmask_pixels = unmask_pixels
         self.signals = _FitSignals()
 
     @QtCore.Slot()
     def run(self):
         try:
             res = self.proc.fit_for_gui(
-                self.name, self.mask_ranges, self.mask_pixels, self.comps_use)
+                self.name, self.mask_ranges, self.mask_pixels, self.comps_use,
+                unmask_ranges=self.unmask_ranges, unmask_pixels=self.unmask_pixels)
             self.signals.done.emit(res)
         except Exception:
             self.signals.failed.emit(traceback.format_exc())
@@ -163,7 +201,10 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         self.pool = QtCore.QThreadPool.globalInstance()
 
         # per-object working state
-        self.mask_ranges = []      # list of [lo, hi]
+        self.mask_ranges = []      # list of [lo, hi] to mask
+        self.mask_pixels = []      # wavelengths; each masks its nearest pixel
+        self.unmask_ranges = []    # list of [lo, hi] to force-unmask (incl. NAL/BAL)
+        self.unmask_pixels = []    # wavelengths; each unmasks its nearest pixel
         self.comps_use = "auto"
         self._saved_lims = None    # (xlim, ylim) per panel, to preserve zoom on refit
         self._busy = False
@@ -235,11 +276,30 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         row.addWidget(self.next_btn)
         side.addLayout(row)
 
-        # mask ranges
-        side.addWidget(QtWidgets.QLabel("<b>Mask ranges</b> (right-drag a plot)"))
+        # masks (ranges + single pixels)
+        side.addWidget(QtWidgets.QLabel("<b>Masks</b> (right-drag a plot, or type below)"))
         self.mask_list = QtWidgets.QListWidget()
+        self.mask_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.mask_list.setMaximumHeight(160)
         side.addWidget(self.mask_list)
+
+        # text entry: "1548.5" -> pixel(s); "1530-1545" -> range
+        trow = QtWidgets.QHBoxLayout()
+        self.mask_input = QtWidgets.QLineEdit()
+        self.mask_input.setPlaceholderText("1548.5   or   1548.5 1549.2   or   1530-1545")
+        self.mask_input.returnPressed.connect(self._add_mask_from_text)
+        add_btn = QtWidgets.QPushButton("Add")
+        add_btn.clicked.connect(self._add_mask_from_text)
+        trow.addWidget(self.mask_input, stretch=1)
+        trow.addWidget(add_btn)
+        side.addLayout(trow)
+
+        # Unmask mode: same text/drag interface, but force-unmasks pixels the
+        # pipeline masked (e.g. a NAL flag) instead of adding a mask.
+        self.unmask_mode_cb = QtWidgets.QCheckBox(
+            "Unmask mode (force-include masked pixels, incl. NAL/BAL)")
+        side.addWidget(self.unmask_mode_cb)
+
         mrow = QtWidgets.QHBoxLayout()
         rm = QtWidgets.QPushButton("Remove selected")
         clr = QtWidgets.QPushButton("Clear all")
@@ -297,6 +357,9 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         self.current = name
         ov = self.overrides.get(name, {})
         self.mask_ranges = [list(r) for r in ov.get("mask_ranges", [])]
+        self.mask_pixels = [float(w) for w in ov.get("mask_pixels", [])]
+        self.unmask_ranges = [list(r) for r in ov.get("unmask_ranges", [])]
+        self.unmask_pixels = [float(w) for w in ov.get("unmask_pixels", [])]
         self.comps_use = ov.get("forced_components") or "auto"
         self._sync_mask_list()
         for rb in self.comp_group.buttons():
@@ -307,32 +370,119 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         self._refit()
 
     def _sync_mask_list(self):
+        # Each row stores its (kind, value) so removal works regardless of
+        # ordering (no reliance on row index -> list index). kinds:
+        # "range"/"pixel" (mask) and "unmask_range"/"unmask_pixel" (unmask).
         self.mask_list.clear()
-        for lo, hi in self.mask_ranges:
-            self.mask_list.addItem("%.2f – %.2f Å" % (lo, hi))
+        for r in self.mask_ranges:
+            it = QtWidgets.QListWidgetItem("mask range     %.2f – %.2f Å" % (r[0], r[1]))
+            it.setData(QtCore.Qt.UserRole, ("range", r))
+            self.mask_list.addItem(it)
+        for wl in self.mask_pixels:
+            it = QtWidgets.QListWidgetItem("mask pixel     %.3f Å" % wl)
+            it.setData(QtCore.Qt.UserRole, ("pixel", wl))
+            self.mask_list.addItem(it)
+        for r in self.unmask_ranges:
+            it = QtWidgets.QListWidgetItem("unmask range   %.2f – %.2f Å" % (r[0], r[1]))
+            it.setData(QtCore.Qt.UserRole, ("unmask_range", r))
+            it.setForeground(_UNMASK_COLOR)
+            self.mask_list.addItem(it)
+        for wl in self.unmask_pixels:
+            it = QtWidgets.QListWidgetItem("unmask pixel   %.3f Å" % wl)
+            it.setData(QtCore.Qt.UserRole, ("unmask_pixel", wl))
+            it.setForeground(_UNMASK_COLOR)
+            self.mask_list.addItem(it)
 
     def _on_span(self, xmin, xmax):
         if xmax - xmin <= 0:
             return
-        self.mask_ranges.append([round(float(xmin), 3), round(float(xmax), 3)])
+        rng = [round(float(xmin), 3), round(float(xmax), 3)]
+        if self.unmask_mode_cb.isChecked():
+            self.unmask_ranges.append(rng)
+            msg = "Unmask range added. Re-fit to apply."
+        else:
+            self.mask_ranges.append(rng)
+            msg = "Mask range added. Re-fit to apply."
         self._sync_mask_list()
         self._draw_mask_overlays()
-        self.canvas.draw_idle()
-        self.status.setText("Mask range added. Re-fit to apply.")
+        self.canvas.draw()
+        self.status.setText(msg)
+
+    def _add_mask_from_text(self):
+        text = self.mask_input.text().strip()
+        if not text:
+            return
+        try:
+            entries = self._parse_mask_text(text)
+        except ValueError as e:
+            self._set_status("Bad mask input: %s" % e, _STATUS_ERR)
+            return
+        unmask = self.unmask_mode_cb.isChecked()
+        for kind, val in entries:
+            if kind == "range":
+                (self.unmask_ranges if unmask else self.mask_ranges).append(val)
+            else:
+                (self.unmask_pixels if unmask else self.mask_pixels).append(val)
+        self.mask_input.clear()
+        self._sync_mask_list()
+        self._draw_mask_overlays()
+        self.canvas.draw()
+        self.status.setText("Added %d %s(s). Re-fit to apply."
+                            % (len(entries), "unmask" if unmask else "mask"))
+
+    @staticmethod
+    def _parse_mask_text(text):
+        """Parse a mask text entry into a list of (kind, value) tuples.
+
+        "1530-1545" or "1530:1545"  -> [("range", [1530.0, 1545.0])]
+        "1548.5"                    -> [("pixel", 1548.5)]
+        "1548.5 1549.2, 1550"       -> three ("pixel", wl) entries
+        """
+        text = text.strip()
+        m = re.match(r"^\s*([0-9]*\.?[0-9]+)\s*[-:]\s*([0-9]*\.?[0-9]+)\s*$", text)
+        if m:
+            lo, hi = float(m.group(1)), float(m.group(2))
+            if lo > hi:
+                lo, hi = hi, lo
+            if lo == hi:
+                raise ValueError("range endpoints are equal")
+            return [("range", [round(lo, 3), round(hi, 3)])]
+
+        out = []
+        for tok in re.split(r"[,\s]+", text):
+            if not tok:
+                continue
+            try:
+                out.append(("pixel", round(float(tok), 4)))
+            except ValueError:
+                raise ValueError("could not parse %r" % tok)
+        if not out:
+            raise ValueError("no values found")
+        return out
 
     def _remove_selected_mask(self):
         for item in self.mask_list.selectedItems():
-            idx = self.mask_list.row(item)
-            del self.mask_ranges[idx]
+            kind, val = item.data(QtCore.Qt.UserRole)
+            if kind == "range":
+                self.mask_ranges = [r for r in self.mask_ranges if r is not val]
+            elif kind == "unmask_range":
+                self.unmask_ranges = [r for r in self.unmask_ranges if r is not val]
+            elif kind == "pixel" and val in self.mask_pixels:
+                self.mask_pixels.remove(val)
+            elif kind == "unmask_pixel" and val in self.unmask_pixels:
+                self.unmask_pixels.remove(val)
         self._sync_mask_list()
         self._draw_mask_overlays()
-        self.canvas.draw_idle()
+        self.canvas.draw()
 
     def _clear_masks(self):
         self.mask_ranges = []
+        self.mask_pixels = []
+        self.unmask_ranges = []
+        self.unmask_pixels = []
         self._sync_mask_list()
         self._draw_mask_overlays()
-        self.canvas.draw_idle()
+        self.canvas.draw()
 
     def _on_comp_changed(self, checked):
         if checked:
@@ -351,7 +501,10 @@ class ManualFixWindow(QtWidgets.QMainWindow):
             if self._has_drawn() else None
 
         task = _FitTask(self.proc, self.current,
-                        [list(r) for r in self.mask_ranges], [], self.comps_use)
+                        [list(r) for r in self.mask_ranges],
+                        list(self.mask_pixels), self.comps_use,
+                        [list(r) for r in self.unmask_ranges],
+                        list(self.unmask_pixels))
         task.signals.done.connect(self._on_fit_done)
         task.signals.failed.connect(self._on_fit_failed)
         self.pool.start(task)
@@ -370,6 +523,15 @@ class ManualFixWindow(QtWidgets.QMainWindow):
                 "z       = %.4f" % (res["civ_ew"], res["civ_blue"],
                                     res["f2500"], res["z"]))
             self._set_status("✓  Fit complete.", _STATUS_OK)
+        except Exception:
+            # Never swallow a draw error silently: surface it and still leave the
+            # canvas repainted with whatever was drawn before the failure.
+            self._set_status("✗  Draw error (see console).", _STATUS_ERR)
+            traceback.print_exc()
+            try:
+                self.canvas.draw()
+            except Exception:
+                pass
         finally:
             self._busy = False
             self._set_busy(False)
@@ -411,6 +573,11 @@ class ManualFixWindow(QtWidgets.QMainWindow):
 
         for ax in self._panels:
             ax.clear()
+        # ax.clear() already removed the overlay artists; drop the stale
+        # references so _draw_mask_overlays() doesn't try to remove them again
+        # (that raises NotImplementedError: cannot remove artist).
+        for ax in (self.ax_full, self.ax_civ):
+            ax._mask_patches = []
 
         c4 = wave > 1400
         ylow = max(0, np.nanpercentile(flux, 1))
@@ -459,20 +626,37 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         self.canvas.draw()
 
     def _draw_mask_overlays(self):
-        # remove previous overlay spans, then re-add current mask ranges
+        # remove previous overlays, then re-add current ranges (shaded spans)
+        # and single pixels (thin vertical lines).
         for ax in (self.ax_full, self.ax_civ):
             for patch in list(getattr(ax, "_mask_patches", [])):
-                patch.remove()
-            ax._mask_patches = [
-                ax.axvspan(lo, hi, color="orange", alpha=0.18, zorder=0)
-                for lo, hi in self.mask_ranges
-            ]
+                try:
+                    patch.remove()
+                except (NotImplementedError, ValueError):
+                    pass  # already detached (e.g. by ax.clear())
+            patches = [ax.axvspan(lo, hi, color="orange", alpha=0.18, zorder=0)
+                       for lo, hi in self.mask_ranges]
+            patches += [ax.axvline(wl, color="orange", alpha=0.6, lw=1.0, zorder=0)
+                        for wl in self.mask_pixels]
+            # unmask overlays in green to distinguish from orange masks
+            patches += [ax.axvspan(lo, hi, color="green", alpha=0.15, zorder=0)
+                        for lo, hi in self.unmask_ranges]
+            patches += [ax.axvline(wl, color="green", alpha=0.7, lw=1.0,
+                                   linestyle="--", zorder=0)
+                        for wl in self.unmask_pixels]
+            ax._mask_patches = patches
 
     # ---- save ------------------------------------------------------------
     def _save(self):
         entry = {}
         if self.mask_ranges:
             entry["mask_ranges"] = [list(r) for r in self.mask_ranges]
+        if self.mask_pixels:
+            entry["mask_pixels"] = list(self.mask_pixels)
+        if self.unmask_ranges:
+            entry["unmask_ranges"] = [list(r) for r in self.unmask_ranges]
+        if self.unmask_pixels:
+            entry["unmask_pixels"] = list(self.unmask_pixels)
         if self.comps_use and self.comps_use != "auto":
             entry["forced_components"] = self.comps_use
         if entry:
@@ -501,9 +685,10 @@ def feed_into_batch(overrides_path=DEFAULT_OVERRIDES_JSON):
     ov = load_overrides(overrides_path)
     out = {}
     for name, entry in ov.items():
+        pixels = entry.get("mask_pixels")
         out[name] = {
             "mask_ranges": entry.get("mask_ranges"),
-            "custom_mask_pixels": None,
+            "custom_mask_pixels": np.array(pixels) if pixels else None,
             "forced_components": entry.get("forced_components"),
         }
     return out
