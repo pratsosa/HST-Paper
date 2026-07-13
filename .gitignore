@@ -23,6 +23,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Office temporary lock files (created while a workbook/doc is open)
+~$*
+
 # Output (comment out if you want to track generated figures)
 # Figures/*.pdf
 # Figures/*.png

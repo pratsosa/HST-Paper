@@ -59,6 +59,12 @@ DEFAULT_OVERRIDES_JSON = Path(__file__).resolve().parent / "manual_fix_overrides
 # left-drag pan/zoom. Left-drag = zoom (toolbar); right-drag = add mask range.
 _SPAN_BUTTON = 3
 
+# Figure geometry matched to the batch diagnostic plot (create_diagnostic_plot
+# uses figsize=(18, 10.5) with the same GridSpec(7, 12) panel layout) so GUI
+# fits are directly comparable to the saved ICA plots.
+_FIG_W, _FIG_H = 18.0, 10.5
+_FIG_ASPECT = _FIG_W / _FIG_H
+
 # Status banner styles (busy / success / error).
 _STATUS_BUSY = "QLabel{background:#fff3cd; color:#7a5b00; padding:6px; border:1px solid #e0c060;}"
 _STATUS_OK = "QLabel{background:#d4edda; color:#155724; padding:6px; border:1px solid #9ad0a5;}"
@@ -188,6 +194,69 @@ def save_overrides(path, overrides):
         json.dump(overrides, f, indent=2)
 
 
+def _robust_flux_ylims(flux, wave):
+    """ylow/yhigh for the flux panels, matching create_diagnostic_plot's formula
+    (ylow = 1st pct; yhigh = 99th pct + median over wave>1400) but NaN-safe.
+
+    Falls back to the full array when wave>1400 has no finite flux -- e.g. COS
+    spectra whose rest-frame coverage is entirely below 1400 A -- so an object
+    with no CIV coverage renders instead of raising "Axis limits cannot be NaN".
+    """
+    sub = flux[wave > 1400]
+    if not np.any(np.isfinite(sub)):
+        sub = flux
+    ylow = max(0.0, float(np.nanpercentile(flux, 1))) if np.any(np.isfinite(flux)) else 0.0
+    yhigh = (float(np.nanpercentile(sub, 99) + np.nanmedian(sub))
+             if np.any(np.isfinite(sub)) else ylow + 1.0)
+    if not np.isfinite(ylow):
+        ylow = 0.0
+    if not np.isfinite(yhigh) or yhigh <= ylow:
+        yhigh = ylow + 1.0
+    return ylow, yhigh
+
+
+def _robust_ylims(arr):
+    """NaN-safe (1st pct, 99th pct) limits for a single array (e.g. errors)."""
+    if np.any(np.isfinite(arr)):
+        lo = max(0.0, float(np.nanpercentile(arr, 1)))
+        hi = float(np.nanpercentile(arr, 99))
+    else:
+        lo, hi = 0.0, 1.0
+    if not np.isfinite(lo):
+        lo = 0.0
+    if not np.isfinite(hi) or hi <= lo:
+        hi = lo + 1.0
+    return lo, hi
+
+
+# ---------------------------------------------------------------------------
+# Aspect-ratio-locked container
+# ---------------------------------------------------------------------------
+class _AspectRatioWidget(QtWidgets.QWidget):
+    """Holds one child widget and keeps it at a fixed width/height aspect ratio
+    by adding symmetric margins (letterbox/pillarbox), centering it. Used to stop
+    the embedded canvas from stretching to the window shape, so the plot panels
+    keep the same proportions as the batch diagnostic figure."""
+
+    def __init__(self, child, aspect):
+        super().__init__()
+        self._aspect = aspect
+        self._lay = QtWidgets.QHBoxLayout(self)
+        self._lay.setContentsMargins(0, 0, 0, 0)
+        self._lay.addWidget(child)
+
+    def resizeEvent(self, event):
+        w, h = event.size().width(), event.size().height()
+        if h > 0:
+            if w / h > self._aspect:      # too wide -> pillarbox (side margins)
+                extra = max(0, w - int(round(h * self._aspect)))
+                self._lay.setContentsMargins(extra // 2, 0, extra - extra // 2, 0)
+            else:                         # too tall -> letterbox (top/bottom)
+                extra = max(0, h - int(round(w / self._aspect)))
+                self._lay.setContentsMargins(0, extra // 2, 0, extra - extra // 2)
+        super().resizeEvent(event)
+
+
 # ---------------------------------------------------------------------------
 # Main window
 # ---------------------------------------------------------------------------
@@ -210,7 +279,7 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         self._busy = False
 
         self.setWindowTitle("ICA Manual Fix")
-        self.resize(1500, 950)
+        self.resize(1600, 820)  # landscape, close to the 18:10.5 plot aspect
         self._build_ui()
 
         if self.names:
@@ -225,12 +294,14 @@ class ManualFixWindow(QtWidgets.QMainWindow):
 
         # --- left: figure + toolbar ---
         left = QtWidgets.QVBoxLayout()
-        self.fig = Figure(figsize=(11, 9), constrained_layout=True)
+        self.fig = Figure(figsize=(_FIG_W, _FIG_H), constrained_layout=True)
         self.canvas = FigureCanvas(self.fig)
         self.toolbar = NavigationToolbar(self.canvas, self)
         left.addWidget(self.toolbar)
-        left.addWidget(self.canvas, stretch=1)
-        root.addLayout(left, stretch=4)
+        # Lock the canvas to the batch figure's aspect ratio so panels stay
+        # proportioned like the saved ICA plots instead of stretching.
+        left.addWidget(_AspectRatioWidget(self.canvas, _FIG_ASPECT), stretch=1)
+        root.addLayout(left, stretch=1)
 
         gs = GridSpec(7, 12, figure=self.fig)
         self.ax_full = self.fig.add_subplot(gs[:3, :8])
@@ -250,9 +321,11 @@ class ManualFixWindow(QtWidgets.QMainWindow):
             for ax in (self.ax_full, self.ax_civ)
         ]
 
-        # --- right: sidebar ---
-        side = QtWidgets.QVBoxLayout()
-        root.addLayout(side, stretch=1)
+        # --- right: sidebar (width-capped so the plot gets the room) ---
+        side_widget = QtWidgets.QWidget()
+        side_widget.setMaximumWidth(300)
+        side = QtWidgets.QVBoxLayout(side_widget)
+        root.addWidget(side_widget)
 
         # object picker
         side.addWidget(QtWidgets.QLabel("<b>Object</b>"))
@@ -277,7 +350,7 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         side.addLayout(row)
 
         # masks (ranges + single pixels)
-        side.addWidget(QtWidgets.QLabel("<b>Masks</b> (right-drag a plot, or type below)"))
+        side.addWidget(QtWidgets.QLabel("<b>Masks</b> (right-drag or type)"))
         self.mask_list = QtWidgets.QListWidget()
         self.mask_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.mask_list.setMaximumHeight(160)
@@ -296,8 +369,10 @@ class ManualFixWindow(QtWidgets.QMainWindow):
 
         # Unmask mode: same text/drag interface, but force-unmasks pixels the
         # pipeline masked (e.g. a NAL flag) instead of adding a mask.
-        self.unmask_mode_cb = QtWidgets.QCheckBox(
-            "Unmask mode (force-include masked pixels, incl. NAL/BAL)")
+        self.unmask_mode_cb = QtWidgets.QCheckBox("Unmask mode (re-include pixels)")
+        self.unmask_mode_cb.setToolTip(
+            "When checked, the text box / right-drag force-includes pixels the "
+            "pipeline masked (including NAL/BAL flags) instead of adding a mask.")
         side.addWidget(self.unmask_mode_cb)
 
         mrow = QtWidgets.QHBoxLayout()
@@ -325,7 +400,8 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         # actions
         self.refit_btn = QtWidgets.QPushButton("Re-fit")
         self.refit_btn.setStyleSheet("font-weight:bold; padding:8px;")
-        self.refit_btn.clicked.connect(self._refit)
+        # lambda so the button's `checked` bool isn't passed as preserve_zoom
+        self.refit_btn.clicked.connect(lambda: self._refit())
         side.addWidget(self.refit_btn)
 
         self.save_btn = QtWidgets.QPushButton("Save override")
@@ -365,9 +441,8 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         for rb in self.comp_group.buttons():
             if rb.text() == self.comps_use:
                 rb.setChecked(True)
-        self._saved_lims = None  # new object -> autoscale
         self.results.setText("")
-        self._refit()
+        self._refit(preserve_zoom=False)  # new object -> autoscale, don't inherit
 
     def _sync_mask_list(self):
         # Each row stores its (kind, value) so removal works regardless of
@@ -491,14 +566,17 @@ class ManualFixWindow(QtWidgets.QMainWindow):
                 self.comps_use = btn.text()
 
     # ---- fitting ---------------------------------------------------------
-    def _refit(self):
+    def _refit(self, preserve_zoom=True):
         if self._busy:
             return
         self._busy = True
         self._set_busy(True)
-        # preserve current zoom across the refit (None on first draw of object)
+        # Preserve the current zoom only when re-fitting the SAME object. On an
+        # object switch (preserve_zoom=False) the panels still hold the previous
+        # object's artists, so capturing here would wrongly transplant that
+        # object's x/y-limits onto the new one -> autoscale to the new data.
         self._saved_lims = [(ax.get_xlim(), ax.get_ylim()) for ax in self._panels] \
-            if self._has_drawn() else None
+            if (preserve_zoom and self._has_drawn()) else None
 
         task = _FitTask(self.proc, self.current,
                         [list(r) for r in self.mask_ranges],
@@ -522,7 +600,11 @@ class ManualFixWindow(QtWidgets.QMainWindow):
                 "f2500   = %.3e\n"
                 "z       = %.4f" % (res["civ_ew"], res["civ_blue"],
                                     res["f2500"], res["z"]))
-            self._set_status("✓  Fit complete.", _STATUS_OK)
+            if getattr(self, "_civ_has_data", True):
+                self._set_status("✓  Fit complete.", _STATUS_OK)
+            else:
+                self._set_status("⚠  No data in CIV region (1500–1600 Å) — "
+                                 "CIV values unreliable.", _STATUS_BUSY)
         except Exception:
             # Never swallow a draw error silently: surface it and still leave the
             # canvas repainted with whatever was drawn before the failure.
@@ -579,9 +661,10 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         for ax in (self.ax_full, self.ax_civ):
             ax._mask_patches = []
 
-        c4 = wave > 1400
-        ylow = max(0, np.nanpercentile(flux, 1))
-        yhigh = np.nanpercentile(flux[c4], 99) + np.nanmedian(flux[c4])
+        ylow, yhigh = _robust_flux_ylims(flux, wave)
+        # flag objects with no flux in the CIV window (e.g. COS coverage < 1400 A)
+        self._civ_has_data = bool(
+            np.any(np.isfinite(flux[(wave >= 1500) & (wave <= 1600)])))
 
         # full spectrum
         self.ax_full.plot(wave, flux, "-k", alpha=0.6)
@@ -603,8 +686,7 @@ class ManualFixWindow(QtWidgets.QMainWindow):
         # errors
         self.ax_err.plot(wave, errs, "-k", alpha=0.6)
         self.ax_err.set_xlim(1500, 1600)
-        self.ax_err.set_ylim(max(0, np.nanpercentile(errs, 1)),
-                             np.nanpercentile(errs, 99))
+        self.ax_err.set_ylim(*_robust_ylims(errs))
         self.ax_err.set_xlabel("Rest wavelength (Å)")
         self.ax_err.set_ylabel("Error")
 
