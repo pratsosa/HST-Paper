@@ -1,0 +1,19 @@
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.6061073591861689
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.498997229286628
+A len(wave_r)     = 3768
+A len(continuum)  = 3768   <- equals len(wave_r): NOT masked
+A len(flux_r[EW]) = 281   <- what the loop iterates over
+A m and b are scalars: type(m)=float64 type(b)=float64
+A continuum[:3]   = [3.4628 3.4625 3.4622]  (wavelengths [1260.1 1260.4 1260.7])
+A continuum[EW][:3] = [3.2412 3.2408 3.2405]  (wavelengths [1500.  1500.4 1500.7])
+A identical? False

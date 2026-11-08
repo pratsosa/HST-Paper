@@ -321,8 +321,54 @@ def emission_lines2(wavelength):
            NeV | NeVI | OII | HeI | HD | HG | HB_OIII | HA )
 
 
+def _flat_continuum_level(flux):
+    """
+    AP 2026-09-29: the scale to use when no continuum can be measured from an
+    exposure at all.
+
+    This MUST be the exposure's own flux scale, never 1.0. coadd.rebin() divides
+    each exposure by this continuum before co-adding; returning 1.0 leaves the
+    exposure in raw physical units (~1e-14) while its neighbours come back
+    normalised (~1), so it enters the co-add about 1e13 too small and its pixels
+    read as zero flux with zero error. Those pixels then acquire an inverse
+    variance of ~1e29 in the ICA fit and pin the reconstruction at zero.
+
+    A 1.0 fallback in the guard below did exactly that to 36 of 594 spectra in the
+    2026-09-10 run. See diagnostics/Collapsed_Fits_Investigation.md.
+    """
+    finite = np.isfinite(flux) & (flux != 0)
+    if not finite.any():
+        return 1.0          # genuinely nothing to scale by; the exposure is empty
+    med = np.nanmedian(flux[finite])
+    if np.isfinite(med) and med > 0:
+        return med
+    med = np.nanmedian(np.abs(flux[finite]))   # median <= 0: use the magnitude
+    return med if (np.isfinite(med) and med > 0) else 1.0
+
+
 def cont_filtered(wave, flux, z, Identifier):
     # AP: Fixed to handle edge cases where emission lines extend to array boundaries
+    #
+    # AP 2026-09-10: added the guard below. coadd.rebin() divides each exposure by
+    # this continuum, so a continuum of 0 turns the whole exposure into +/-inf and
+    # it is silently dropped from the co-add. That happened whenever an exposure lay
+    # ENTIRELY inside one emission-line window -- e.g. a COS G160M exposure covering
+    # rest 1475-1660 A sits wholly inside the C IV window of 1460-1685 A. Every pixel
+    # is then masked as emission, the running median below has nothing to work with,
+    # and the "emission spans entire spectrum" branch filled med_flux with 0.0.
+    # 15 spectra lost their C IV this way; see
+    # diagnostics/CIV_Data_Loss_Investigation.md.
+    #
+    # Fallback: a flat continuum at the exposure's own median flux. Normalising by a
+    # constant preserves the data and puts the exposure on roughly the same scale as
+    # its neighbours; the absolute scale is not meaningful here anyway, since
+    # coadd.rebin() morphs the co-added spectrum afterwards. It is a placeholder, not
+    # a fit -- an exposure wholly inside an emission line has no line-free wavelength
+    # from which a continuum could be measured.
+    em_all = emission_lines2(wave/(1+z))
+    if em_all.all():
+        return np.full(len(wave), _flat_continuum_level(flux))
+
     #Ignore BAL troughs
     bal = np.zeros(len(wave))
     if Identifier in BAL_regions.Troughs:
@@ -394,6 +440,21 @@ def cont_filtered(wave, flux, z, Identifier):
             w = wave[jp_list[i]:jf_list[i]+1]
             med_flux[jp_list[i]:jf_list[i]+1] = m*w + b
     # End AP
+
+    # AP 2026-09-10: same reasoning as the all-emission guard at the top of this
+    # function -- any leftover zero or non-finite continuum pixel would annihilate
+    # that pixel in coadd.rebin(). Fill from the rest of the continuum.
+    bad = ~np.isfinite(med_flux) | (med_flux == 0)
+    if bad.any():
+        good = ~bad
+        # AP 2026-09-29: the `else` branch previously filled with 1.0, which left the
+        # exposure un-normalised. It fires when med_flux is NaN everywhere -- every
+        # pixel emission-masked, so the interpolation above has no finite neighbour
+        # to work from. That happens for exposures almost (but not entirely) inside
+        # an emission window, which is why the all-emission guard at the top did not
+        # catch them. Use the exposure's own flux scale instead.
+        med_flux[bad] = (np.median(med_flux[good]) if good.any()
+                         else _flat_continuum_level(flux))
 
     return med_flux
 

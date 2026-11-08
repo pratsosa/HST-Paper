@@ -1,0 +1,84 @@
+
+=== Processing 2MASS J00435499+4234302_COS [override_mask_high] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.2856838942032707
+Results [override_mask_high]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 2MASS J00435499+4234302_COS    zeros-start: sumw=['0', '0', '0'] redchi=['4.24', '3.8', '4.03'] || 0.05-start: sumw=['2.62e-05', '0.000116', '4.21e-06'] redchi=['5.54e+33', '1.44e+35', '2.91e+30']
+
+=== Processing 2MASS J10115298+5442063_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 1.0984319811387095
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 2MASS J10115298+5442063_COS    zeros-start: sumw=['0', '0', '0'] redchi=['3.15', '3.15', '3.14'] || 0.05-start: sumw=['0.001', '0.000598', '3.14e-05'] redchi=['5.72e+43', '1.34e+43', '2.25e+37']
+
+=== Processing 2MASS J12554763+4012302_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.485250346462234
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 2MASS J12554763+4012302_COS    zeros-start: sumw=['0', '0', '0'] redchi=['0.125', '0.125', '0.125'] || 0.05-start: sumw=['0.000229', '0.00232', '5.26e-06'] redchi=['6.4e+38', '1.78e+41', '3.38e+32']
+
+=== Processing 2MASS J14550246+0850022_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.8872535210118317
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 2MASS J14550246+0850022_COS    zeros-start: sumw=['0', '0', '0'] redchi=['0.455', '0.455', '0.454'] || 0.05-start: sumw=['9.49e-05', '0.000121', '3.33e-06'] redchi=['1.31e+38', '6.69e+39', '1.13e+33']
+
+=== Processing 3C 95_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0901315783113597
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 3C 95_COS                      zeros-start: sumw=['0', '0', '0'] redchi=['47.9', '43.6', '44.1'] || 0.05-start: sumw=['0.000182', '0.000749', '1.34e-05'] redchi=['1.02e+39', '8.18e+39', '2.82e+34']
+
+=== Processing 7C 081438.10+224634.00_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.781735356537413
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+KICK 7C 081438.10+224634.00_COS     zeros-start: sumw=['0', '0', '0'] redchi=['0.148', '0.133', '0.141'] || 0.05-start: sumw=['0.0159', '0.113', '0.000235'] redchi=['1.04e+41', '4.68e+44', '2.81e+35']

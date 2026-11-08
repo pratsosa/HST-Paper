@@ -135,15 +135,18 @@ def get_CIV(wave, flux, wave_r, flux_r, name, ax, EW_region=[1500,1600], cont_re
 
     #Plot EW region under flux_r -- ADD MANUAL HERE
     EW = ((wave_r>=EW_region[0])&(wave_r<=EW_region[1]))
+    # AP 2026-09-23: index the continuum with the same mask as the flux; see
+    # diagnostics/CIV_EW_Indexing_Investigation.md
+    cont_EW = continuum[EW]
 
     #And compute the EW
     CIV_EW = 0
     ew_list = [0.]
     for i in range(len(wave_r[EW])):
         try:
-            CIV_EW += max(( (flux_r[EW][i] - continuum[i]) / continuum[i] ) * ( wave_r[EW][i+1] - wave_r[EW][i] ), 0) #no absorption
+            CIV_EW += max(( (flux_r[EW][i] - cont_EW[i]) / cont_EW[i] ) * ( wave_r[EW][i+1] - wave_r[EW][i] ), 0) #no absorption
         except IndexError:
-            CIV_EW += max(( (flux_r[EW][i] - continuum[i]) / continuum[i] ) * ( wave_r[EW][i] - wave_r[EW][i-1] ), 0)
+            CIV_EW += max(( (flux_r[EW][i] - cont_EW[i]) / cont_EW[i] ) * ( wave_r[EW][i] - wave_r[EW][i-1] ), 0)
 
         ew_list.append(CIV_EW)
 
@@ -278,6 +281,10 @@ def residual(params, comps, data, eps_data):
     model = sum(params[w].value*comps[n] for (n, w) in enumerate(params))
     return (data-model)**2 * eps_data
 
+# AP 2026-09-23: a pixel whose inverse variance exceeds this multiple of the
+# spectrum's median is treated as unusable rather than as a perfect measurement.
+_IVAR_MAX_FACTOR = 1e4
+
 def ICA_fit(components, wave, spectrum, ivar, flags, priors):
     # FIXME: explain this
     #this is called ICA_fit, but we get the component weights from minimize()
@@ -291,6 +298,22 @@ def ICA_fit(components, wave, spectrum, ivar, flags, priors):
     #print(params)
     #badpix = masking(wave, spectrum, 1/np.sqrt(ivar))
     ivar[flags>0] = 0.
+
+    # AP 2026-09-23: reject pixels that claim impossible precision.
+    # ivar = 1/errs**2, so an error of ~0 yields ivar ~1e29. Such a pixel acts as an
+    # infinitely strong constraint: at zero component weights the model is zero and
+    # chi-squared stays finite, but moving any weight costs ~1e30, so least squares
+    # returns all-zero weights and the reconstruction collapses to a flat line.
+    # 47 fits in the master run failed this way. Healthy spectra have
+    # max(ivar)/median(ivar) of order 5; collapsed ones order 1e29, so the cut below
+    # is far above anything legitimate. Non-finite ivar (error exactly 0) goes too.
+    # See diagnostics/Collapsed_Fits_Investigation.md
+    ivar[~np.isfinite(ivar)] = 0.
+    _pos = ivar > 0
+    if _pos.any():
+        _lim = np.median(ivar[_pos]) * _IVAR_MAX_FACTOR
+        ivar[ivar > _lim] = 0.
+
     return minimize(residual, params, args=(components, spectrum, ivar), method="lbfgsb", nan_policy='omit')
 
 def get_ICA(wave, flux, errs, mask, z, ica_path=None, use_priors=True, plot_spectrum=True, comps_use=None):

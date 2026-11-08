@@ -1,0 +1,21 @@
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.6061073591861689
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.498997229286628
+PROOF object                : NGC 985_COS
+PROOF len(wave_r)           : 3768      <- continuum has this length (line 509)
+PROOF len(wave_r[EW])       : 281       <- loop range (line 516)
+PROOF i=0  -> flux_r[EW][0] is at wave 1500.0 A
+PROOF i=0  -> continuum[0]  is at wave 1260.1 A   (offset 239.9 A)
+PROOF i=280-> flux_r[EW][i] is at wave 1599.9 A
+PROOF i=280-> continuum[i]  is at wave 1344.0 A   (offset 255.9 A)
+PROOF continuum slope m     : -0.0009236  (negative => value used is too HIGH => EW too LOW)
+PROOF continuum[0] value    : 3.4628   vs correct continuum[EW][0] = 3.2412

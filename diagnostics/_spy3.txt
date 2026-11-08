@@ -1,0 +1,142 @@
+SPY === RebinnedSpec_master
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.6061073591861689
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.498997229286628
+SPY NGC 985_COS                    flux_ica: n=3768 nan=0 zero=0 | in EW window: nan=0 min=4.02 max=9.44
+Results [baseline]: CIV_blue=266.5 km/s, CIV_EW=78.53 A, F2500=6.061e-01
+
+=== Processing Mrk 352_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 1.04071746021488
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.418417612373634
+SPY Mrk 352_COS                    flux_ica: n=3716 nan=0 zero=0 | in EW window: nan=0 min=3.27 max=25.8
+Results [baseline]: CIV_blue=-1047.7 km/s, CIV_EW=644.46 A, F2500=1.041e+00
+
+=== Processing NGC4395_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.5027135434114501
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.4756064591430023
+SPY NGC4395_COS                    flux_ica: n=3751 nan=0 zero=0 | in EW window: nan=0 min=-7.66 max=28.5
+Results [baseline]: CIV_blue=-1394.5 km/s, CIV_EW=255.25 A, F2500=5.027e-01
+
+=== Processing QSO J0936+5331_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 4.111889705083204
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.708300399159109
+SPY QSO J0936+5331_COS             flux_ica: n=3768 nan=0 zero=0 | in EW window: nan=0 min=0.345 max=88.7
+Results [baseline]: CIV_blue=-1602.7 km/s, CIV_EW=1166.18 A, F2500=4.112e+00
+
+=== Processing LEDA 38224_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.5253101423656618
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.795589521219734
+SPY LEDA 38224_COS                 flux_ica: n=3751 nan=0 zero=0 | in EW window: nan=0 min=5.66 max=51
+Results [baseline]: CIV_blue=611.4 km/s, CIV_EW=589.32 A, F2500=5.253e-01
+SPY === RebinnedSpec_master_v2
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0818154539306946
+SPY NGC 985_COS                    flux_ica: n=3716 nan=0 zero=3716 | in EW window: nan=0 min=0 max=0
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+
+=== Processing Mrk 352_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.4580292398574857
+SPY Mrk 352_COS                    flux_ica: n=3768 nan=0 zero=3768 | in EW window: nan=0 min=0 max=0
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+
+=== Processing NGC4395_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 1.6858471604090843
+SPY NGC4395_COS                    flux_ica: n=3768 nan=0 zero=3768 | in EW window: nan=0 min=0 max=0
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+
+=== Processing QSO J0936+5331_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 6.564313580595055
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.9414902376870304
+SPY QSO J0936+5331_COS             flux_ica: n=3768 nan=0 zero=0 | in EW window: nan=0 min=3.23 max=145
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=0.00 A, F2500=6.564e+00
+
+=== Processing LEDA 38224_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.7109345697037295
+SPY LEDA 38224_COS                 flux_ica: n=3716 nan=0 zero=3716 | in EW window: nan=0 min=0 max=0
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00

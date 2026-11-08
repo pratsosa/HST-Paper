@@ -45,8 +45,64 @@ from ica.manual_fix_config import MANUAL_FIX_CONFIG
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "Data"
 _QUALITY_JSON = Path(__file__).resolve().parent / "quality_classification.json"
+# GUI-authored per-object overrides (manual_fix_gui.py Save writes this). Keyed on
+# master-mode FITS stems (e.g. "Mrk 1148_COS"); the going-forward override source
+# for master / overrides-only runs. MANUAL_FIX_CONFIG remains only for the legacy
+# Sulentic default run.
+_OVERRIDES_JSON = Path(__file__).resolve().parent / "manual_fix_overrides.json"
 
 warnings.filterwarnings('ignore')
+
+
+def _override_kwargs(entry):
+    """Map a manual_fix_overrides.json entry to fit_with_overrides() kwargs.
+
+    Returns an empty dict for a missing/empty entry, so the fit reproduces the
+    plain pipeline default (== the batch baseline fit)."""
+    if not entry:
+        return {}
+    return dict(
+        mask_ranges=entry.get("mask_ranges") or [],
+        mask_pixels=entry.get("mask_pixels") or [],
+        unmask_ranges=entry.get("unmask_ranges") or [],
+        unmask_pixels=entry.get("unmask_pixels") or [],
+        comps_use=entry.get("forced_components"),
+    )
+
+
+def _override_has_mask(entry):
+    return bool(entry and (entry.get("mask_ranges") or entry.get("mask_pixels")))
+
+
+def _override_has_unmask(entry):
+    return bool(entry and (entry.get("unmask_ranges") or entry.get("unmask_pixels")))
+
+
+def _override_tag(entry):
+    """Filename tag describing which override types an entry carries.
+
+    "baseline"           -> no override (or empty entry)
+    "override_mask"      -> only pixels/ranges masked
+    "override_unmask"    -> only pixels/ranges force-included
+    "override_maskunmask_high" -> masked + unmasked + forced 'high' components
+    Mask/unmask are distinguished (per user choice); components append as a token.
+    """
+    if not entry:
+        return "baseline"
+    mask_tok = ""
+    if _override_has_mask(entry):
+        mask_tok += "mask"
+    if _override_has_unmask(entry):
+        mask_tok += "unmask"
+    toks = []
+    if mask_tok:
+        toks.append(mask_tok)
+    comps = entry.get("forced_components")
+    if comps in ("mod", "low", "high"):
+        toks.append(comps)
+    if not toks:
+        return "baseline"  # entry present but no actionable override
+    return "override_" + "_".join(toks)
 
 OUTPUT_PATH = "ICA_Plots_Rebin_AP"
 # REBIN_PATH = "RebinnedSpec_2022Aug11"
@@ -63,7 +119,7 @@ class ICAManualFixProcessor:
     _MASTER_FOLDER = "All"
 
     def __init__(self, catalog_file=None, rebin_path=None, master_mode=False,
-                 output_path=None):
+                 output_path=None, overrides_path=None):
         """
         Initialize the processor with catalog data
 
@@ -72,6 +128,10 @@ class ICAManualFixProcessor:
         catalog_file : str or None
             Path to the CSV file containing object information.
             Defaults to Data/HST_CIV_Sulentic2007_HSLA2018_finalprops.csv in repo root.
+        overrides_path : str or None
+            Path to the GUI-authored override store (manual_fix_overrides.json).
+            Defaults to the file next to this module. Loaded into self.overrides;
+            used as the override source for master / overrides-only runs.
         rebin_path : str or None
             Directory containing rebinned FITS files to run ICA on.
             Defaults to HST_PAPER_REBIN_DIR env var, then "RebinnedSpec_2026AP".
@@ -108,6 +168,13 @@ class ICAManualFixProcessor:
         # Unused in master mode (objects are not classified), but cheap to load.
         with open(_QUALITY_JSON) as f:
             self.quality_map = json.load(f)
+
+        # Load GUI-authored overrides (keyed on master-mode FITS stems).
+        self.overrides_path = overrides_path if overrides_path is not None else str(_OVERRIDES_JSON)
+        self.overrides = {}
+        if os.path.exists(self.overrides_path):
+            with open(self.overrides_path) as f:
+                self.overrides = json.load(f)
 
     def list_master_objects(self):
         """
@@ -312,8 +379,99 @@ class ICAManualFixProcessor:
             print(f"No manual fix configuration found for {name}")
         
         return mask_orig, comps_use
-    
-    def get_CIV_parameters(self, wave, flux, wave_r, flux_r, name, 
+
+    def fit_with_overrides(self, name, mask_ranges=None, mask_pixels=None,
+                           unmask_ranges=None, unmask_pixels=None, comps_use=None):
+        """Run the ICA pipeline from *explicit* overrides and return fit arrays.
+
+        This is the single shared fit engine used by both the interactive GUI
+        (ica.manual_fix_gui.GuiFixProcessor.fit_for_gui delegates here) and the
+        batch runner, so a GUI fit and a batch fit for the same override are
+        numerically identical. It reproduces process_object()'s numerical path
+        (setup_object -> main_ICA -> get_CIV_parameters); only the source of the
+        mask/comps overrides differs. No matplotlib is touched, so it is safe to
+        call off a UI thread.
+
+        Parameters
+        ----------
+        name : str
+            Object identifier (master-mode FITS stem, or Sulentic Final_Name).
+        mask_ranges : list of [lo, hi] or None
+            Rest-frame wavelength ranges to mask (bad-pixel flag).
+        mask_pixels : list of float or None
+            Wavelengths whose nearest pixel is masked.
+        unmask_ranges, unmask_pixels :
+            Ranges / pixels to force-*include* even if the pipeline masked them
+            (NAL/BAL/input bad). Honouring an unmask requires re-fitting with the
+            pipeline's recomputed mask cleared at those positions (see below).
+        comps_use : {'mod', 'low', 'high', None, '', 'auto'}
+            Force a component set; None/''/'auto' means auto-select by chi-squared.
+
+        Returns
+        -------
+        dict with name, spec_name, z, the diagnostic arrays (wave_arb, flux_arb,
+        errs_arb, mask_arb, wave_ica, flux_ica), f2500, civ_blue, civ_ew.
+        """
+        mask_ranges = mask_ranges or []
+        mask_pixels = mask_pixels or []
+        unmask_ranges = unmask_ranges or []
+        unmask_pixels = unmask_pixels or []
+
+        # Reload from disk every fit -> guaranteed-clean mask state, no cross-fit
+        # mutation bugs. Cheap next to the ~5-10 s fit itself.
+        wave, flux, z, errs, mask, spec_name = self.setup_object(name)
+        mask = np.asarray(mask, dtype=float).copy()
+
+        for lo, hi in mask_ranges:
+            mask[(wave >= lo) & (wave <= hi)] = 1
+        for wl in mask_pixels:
+            mask[np.argmin(np.abs(wave - wl))] = 1
+
+        cu = None if comps_use in (None, "", "auto") else comps_use
+
+        (wave_arb, flux_arb, errs_arb, mask_arb,
+         wave_ica, flux_ica, f2500) = run_ICA_r20_components.main_ICA(
+            wave, flux, errs, mask, z, name="", ica_path=None, comps_use=cu)
+
+        # Force-unmask pixels the pipeline masked (NAL/BAL/input bad). Those masks
+        # are recomputed inside main_ICA, so honouring an unmask means re-fitting
+        # with them cleared. We reuse main_ICA's own outputs: flux_arb carries the
+        # *real* (not median-replaced) flux at NAL pixels, which is exactly what we
+        # want at an unmasked pixel; still-masked pixels are ignored either way.
+        # When nothing is unmasked we skip this entirely -> identical to the batch.
+        if unmask_ranges or unmask_pixels:
+            mask_ref = np.asarray(mask_arb, dtype=float).copy()
+            for lo, hi in unmask_ranges:
+                mask_ref[(wave_arb >= lo) & (wave_arb <= hi)] = 0
+            for wl in unmask_pixels:
+                mask_ref[np.argmin(np.abs(wave_arb - wl))] = 0
+
+            wave_ica2, flux_ica2 = run_ICA_r20_components.get_ICA(
+                wave_arb, flux_arb, errs_arb, mask_ref, z,
+                ica_path=None, use_priors=False, comps_use=cu)
+
+            # Rescale f2500 by the original fit's real-unit factor at 2500 A
+            # (norm/morph scaling is fixed by the data, not the fit).
+            i0 = np.argmin(np.abs(wave_ica - 2500.))
+            i2 = np.argmin(np.abs(wave_ica2 - 2500.))
+            if flux_ica[i0]:
+                f2500 = float(flux_ica2[i2] * (f2500 / flux_ica[i0]))
+            wave_ica, flux_ica = wave_ica2, flux_ica2
+            # Show the mask actually used for the fit so unmasked pixels no longer
+            # render as NAL/BAL (they were set to 0 in mask_ref).
+            mask_arb = mask_ref
+
+        civ_blue, civ_ew = self.get_CIV_parameters(
+            wave_arb, flux_arb, wave_ica, flux_ica, name)
+
+        return dict(
+            name=name, spec_name=spec_name, z=float(z),
+            wave_arb=wave_arb, flux_arb=flux_arb, errs_arb=errs_arb, mask_arb=mask_arb,
+            wave_ica=wave_ica, flux_ica=flux_ica,
+            f2500=float(f2500), civ_blue=float(civ_blue), civ_ew=float(civ_ew),
+        )
+
+    def get_CIV_parameters(self, wave, flux, wave_r, flux_r, name,
                           EW_region=[1500,1600], cont_region=[[1445,1465],[1700,1705]]):
         """
         Extract CIV parameters from ICA fit
@@ -352,15 +510,24 @@ class ICAManualFixProcessor:
         
         # Calculate EW
         EW = ((wave_r>=EW_region[0])&(wave_r<=EW_region[1]))
+
+        # AP 2026-09-23: continuum must be indexed with the SAME mask as the flux.
+        # The loop below runs over the EW-selected subset, so `continuum[i]` read the
+        # full-array element i -- i.e. the continuum ~240 A too blue (the ICA grid
+        # starts at 1260 A, the window at 1500 A). Because quasar continua fall with
+        # wavelength the divisor was too large, biasing every EW low by a median
+        # factor of 1.46. Masking once here also avoids re-masking inside the loop.
+        # See diagnostics/CIV_EW_Indexing_Investigation.md
+        cont_EW = continuum[EW]
         
         CIV_EW = 0
         ew_list = [0.]
         for i in range(len(wave_r[EW])):
             try:
-                CIV_EW += max(((flux_r[EW][i] - continuum[i]) / continuum[i]) * 
+                CIV_EW += max(((flux_r[EW][i] - cont_EW[i]) / cont_EW[i]) * 
                              (wave_r[EW][i+1] - wave_r[EW][i]), 0)
             except IndexError:
-                CIV_EW += max(((flux_r[EW][i] - continuum[i]) / continuum[i]) * 
+                CIV_EW += max(((flux_r[EW][i] - cont_EW[i]) / cont_EW[i]) * 
                              (wave_r[EW][i] - wave_r[EW][i-1]), 0)
             ew_list.append(CIV_EW)
         
@@ -371,10 +538,16 @@ class ICAManualFixProcessor:
         return CIV_blue, CIV_EW
     
     
-    def create_diagnostic_plot(self, wave_arb, flux_arb, errs_arb, mask_arb, 
-                              wave_ica, flux_ica, name, spec_name, CIV_blue, CIV_EW, show=False, save=False):
+    def create_diagnostic_plot(self, wave_arb, flux_arb, errs_arb, mask_arb,
+                              wave_ica, flux_ica, name, spec_name, CIV_blue, CIV_EW, show=False, save=False,
+                              file_tag=None):
         """
         Create diagnostic plots for the ICA fit
+
+        file_tag : str or None
+            If given, the saved filename is "{spec_name}_{file_tag}.png" (used by
+            the override-aware path, e.g. "baseline" / "override_maskunmask_high").
+            If None, the legacy MANUAL_FIX_CONFIG-derived tag is used (default mode).
         """
         c4mask = wave_arb > 1400
         ylow, yhigh = max(0, np.nanpercentile(flux_arb, 1)), \
@@ -430,13 +603,16 @@ class ICAManualFixProcessor:
         plt.tight_layout()
         
         if save:
-            config_type = "nomask"
-            if name in MANUAL_FIX_CONFIG:
-                if MANUAL_FIX_CONFIG[name]['custom_mask_pixels'] is not None:
-                    config_type = "mask"
-                if MANUAL_FIX_CONFIG[name]['forced_components'] is not None:
-                    config_type += f"_comps{MANUAL_FIX_CONFIG[name]['forced_components']}"
-            
+            if file_tag is not None:
+                config_type = file_tag
+            else:
+                config_type = "nomask"
+                if name in MANUAL_FIX_CONFIG:
+                    if MANUAL_FIX_CONFIG[name]['custom_mask_pixels'] is not None:
+                        config_type = "mask"
+                    if MANUAL_FIX_CONFIG[name]['forced_components'] is not None:
+                        config_type += f"_comps{MANUAL_FIX_CONFIG[name]['forced_components']}"
+
             # plt.savefig(f'ICA_Plots_Refactored/{spec_name}_{config_type}.png', dpi=150)
             print(f'Spec_name is {spec_name}')
             plt.savefig(f'{self.output_path}/{self.get_folder(spec_name)}/{spec_name}_{config_type}.png', dpi=150)
@@ -470,13 +646,14 @@ class ICAManualFixProcessor:
         
         # Show EW region and blueshift
         EW = ((wave_r>=EW_region[0])&(wave_r<=EW_region[1]))
+        cont_EW = continuum[EW]   # AP 2026-09-23: see get_CIV_parameters above
         CIV_EW = 0
         ew_list = [0.]
         for i in range(len(wave_r[EW])):
             try:
-                CIV_EW += max(( (flux_r[EW][i] - continuum[i]) / continuum[i] ) * ( wave_r[EW][i+1] - wave_r[EW][i] ), 0) #no absorption
+                CIV_EW += max(( (flux_r[EW][i] - cont_EW[i]) / cont_EW[i] ) * ( wave_r[EW][i+1] - wave_r[EW][i] ), 0) #no absorption
             except IndexError:
-                CIV_EW += max(( (flux_r[EW][i] - continuum[i]) / continuum[i] ) * ( wave_r[EW][i] - wave_r[EW][i-1] ), 0)
+                CIV_EW += max(( (flux_r[EW][i] - cont_EW[i]) / cont_EW[i] ) * ( wave_r[EW][i] - wave_r[EW][i-1] ), 0)
 
             ew_list.append(CIV_EW)
 
@@ -515,8 +692,16 @@ class ICAManualFixProcessor:
         results : dict
             Dictionary containing all fit results
         """
+        # Master / overrides-driven path: source the override from the JSON store
+        # (going-forward override source) and fit through the shared engine, which
+        # also handles mask ranges and force-unmasking. Legacy default (Sulentic)
+        # mode keeps the MANUAL_FIX_CONFIG path below.
+        if self.master_mode:
+            return self.process_object_override(
+                name, self.overrides.get(name), plot=plot, save_plot=save_plot)
+
         print(f"\n=== Processing {name} ===")
-        
+
         # Setup object data
         wave_orig, flux_orig, z, errs_orig, mask_orig, spec_name = self.setup_object(name)
         print(f'Median of flux_orig: {np.nanmedian(flux_orig)}')  # Debugging line
@@ -551,13 +736,128 @@ class ICAManualFixProcessor:
             self._ensure_output_dirs()
 
         if plot or save_plot:
-            self.create_diagnostic_plot(wave_arb, flux_arb, errs_arb, mask_arb, 
-                                       wave_ica, flux_ica, name, spec_name, CIV_blue, CIV_EW, 
+            self.create_diagnostic_plot(wave_arb, flux_arb, errs_arb, mask_arb,
+                                       wave_ica, flux_ica, name, spec_name, CIV_blue, CIV_EW,
                                        show=plot, save=save_plot)
-        
+
         return results
-    
-    def batch_process(self, object_list=None, output_file="manual_fix_results.csv", 
+
+    def process_object_override(self, name, override, plot=False, save_plot=False,
+                                tag=None, is_override=None):
+        """
+        Process a single object through the shared override-aware fit engine.
+
+        Parameters
+        ----------
+        name : str
+            Object identifier (master-mode FITS stem).
+        override : dict or None
+            A manual_fix_overrides.json entry, or None for the plain baseline fit.
+        tag : str or None
+            Filename tag for the saved plot. Defaults to _override_tag(override)
+            (i.e. "baseline" when override is None, else "override_<types>").
+        is_override : bool or None
+            Value recorded in the CSV 'override' column. Defaults to
+            (override is not None); pass explicitly to force a baseline row.
+
+        Returns
+        -------
+        results : dict
+            One CSV row for this fit.
+        """
+        if tag is None:
+            tag = _override_tag(override)
+        if is_override is None:
+            is_override = override is not None
+
+        print(f"\n=== Processing {name} [{tag}] ===")
+
+        res = self.fit_with_overrides(name, **_override_kwargs(override))
+        spec_name = res["spec_name"]
+        comps_use = (_override_kwargs(override) or {}).get("comps_use")
+
+        results = {
+            'object_name': name,
+            'spec_name': spec_name,
+            'redshift': res["z"],
+            'CIV_blueshift': res["civ_blue"],
+            'CIV_EW': res["civ_ew"],
+            'f2500': res["f2500"],
+            'components_used': comps_use,
+            'override': bool(is_override),
+            'override_type': tag,
+            'manual_masking_applied': _override_has_mask(override) or _override_has_unmask(override),
+            'forced_components': comps_use is not None,
+        }
+
+        print("Results [%s]: CIV_blue=%.1f km/s, CIV_EW=%.2f A, F2500=%.3e"
+              % (tag, res["civ_blue"], res["civ_ew"], res["f2500"]))
+
+        if save_plot:
+            self._ensure_output_dirs()
+        if plot or save_plot:
+            self.create_diagnostic_plot(
+                res["wave_arb"], res["flux_arb"], res["errs_arb"], res["mask_arb"],
+                res["wave_ica"], res["flux_ica"], name, spec_name,
+                res["civ_blue"], res["civ_ew"], show=plot, save=save_plot, file_tag=tag)
+
+        return results
+
+    def batch_process_overrides(self, object_list=None,
+                                output_file="ICA_Results_Rebin_overrides.csv",
+                                plot=False, save_plots=False):
+        """
+        Run only objects that have a manual override, fitting each TWICE: once
+        with no override (baseline) and once with the override applied. Both fits
+        are plotted (distinct filename tags) and both are written to the results
+        CSV (one row each, distinguished by the 'override' column), so the two
+        can be compared directly.
+
+        Parameters
+        ----------
+        object_list : list or None
+            Object identifiers to run. If None, uses every key in self.overrides.
+        output_file : str
+            Output CSV filename (two rows per object).
+        plot, save_plots : bool
+            Show / save the diagnostic plots.
+
+        Returns
+        -------
+        results_df : pandas.DataFrame
+        """
+        if object_list is None:
+            object_list = sorted(self.overrides.keys())
+
+        if save_plots:
+            self._ensure_output_dirs()
+
+        all_results = []
+        for name in object_list:
+            entry = self.overrides.get(name)
+            # Baseline (no override) then the overridden fit.
+            for is_override in (False, True):
+                ov = entry if is_override else None
+                tag = _override_tag(entry) if is_override else "baseline"
+                try:
+                    result = self.process_object_override(
+                        name, ov, plot=plot, save_plot=save_plots,
+                        tag=tag, is_override=is_override)
+                    all_results.append(result)
+                except Exception as e:
+                    print(f"ERROR processing {name} [{tag}]: {str(e)}")
+                    continue
+
+        results_df = pd.DataFrame(all_results)
+        results_df.to_csv(output_file, index=False)
+        print(f"\nResults saved to {output_file}")
+        n_obj = len(object_list)
+        print(f"Processed {len(all_results)} fits for {n_obj} override object(s) "
+              f"(baseline + override each).")
+
+        return results_df
+
+    def batch_process(self, object_list=None, output_file="manual_fix_results.csv",
                      plot=False, save_plots=False):
         """
         Process multiple objects and save results

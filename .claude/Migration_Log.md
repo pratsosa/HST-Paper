@@ -700,3 +700,224 @@ python -m ica.run_all_objects --master
 # Master mode with an explicit rebin directory:
 python -m ica.run_all_objects --master --rebin-dir /path/to/RebinnedSpec_master
 ```
+
+---
+
+## 2026-09-10 — C IV data loss in `RebinnedSpec_master/`: investigation
+
+**Full write-up: `diagnostics/CIV_Data_Loss_Investigation.md`. No file in
+`rebinning/` was modified.**
+
+Objects were turning up in the ICA review with no data across C IV even though MAST
+holds C IV coverage for them. A census of all 615 (object, instrument) pairs
+(`diagnostics/audit_civ_coverage.py` → `diagnostics/civ_coverage_audit.csv`) found
+**57 spectra losing recoverable C IV** to four bugs:
+
+| bug | where | cost |
+|---|---|---|
+| A. only row 0 of each COS x1d table is read, so FUVB / NUVB / NUVC are discarded | `read_spec_data.py` `read_cos_flat` / `read_stis_flat` | 24 spectra (`LOST_ROWS`); silently halves coverage for *all* multi-segment COS objects |
+| B. `cont_filtered()` returns a continuum of 0.0 when an exposure lies entirely inside one emission-line window; `coadd.py` then divides by it | `spec_morph.py` + `coadd.py` | 15 spectra (`LOST_COADD`) |
+| C. FOS `accum_flag()` indexes group `[-3]` on files with only 2 readout groups | `read_spec_data.py` `read_fos_flat` | 13 objects crash, no output |
+| D. one all-bad exposure raises out of the reader and aborts the whole object | `cut_edge_pix.py` + readers | 5 objects crash, no output |
+
+Bug B is a regression introduced by the migration's own defensive fix to
+`cont_filtered()`: the same case previously raised `IndexError`, so the object failed
+loudly instead of writing a NaN spectrum.
+
+Candidate fixes for all four are implemented as monkey-patches in
+`diagnostics/rebin_patched.py` and verified: all 57 recover. FOS and STIS output is
+bit-identical for objects that were already fine; **COS output is not** — fix A adds
+the second detector segment, so every COS co-add changes (no systematic shift, median
+ratio 0.98–1.00, but per-pixel scatter 0.15–0.37). Adopting fix A sample-wide means
+re-running all COS ICA fits. That decision, and whether a flat continuum is acceptable
+for exposures wholly inside an emission line, are open — see §7 of the write-up.
+
+---
+
+## 2026-09-10 — C IV data-loss fixes applied to `rebinning/` (approved by AP)
+
+Following the investigation above, the four bugs were fixed **in place** in
+`rebinning/` (AP's decision — they are outright bugs, not pipeline variants).
+Corrected spectra go to a **new** directory, `RebinnedSpec_master_v2/`, so the
+current `RebinnedSpec_master/` and the ICA fits built on it survive for comparison.
+
+### Files changed
+
+**`rebinning/read_spec_data.py`** — the three flat-layout readers (`read_cos_flat`,
+`read_stis_flat`, `read_fos_flat`) were rewritten. They keep their names and
+signatures but now share one implementation, because the bugs were duplicated
+across all three copies. New private helpers: `_cos_stis_rows`, `_fos_rows`,
+`_stack_flat_rows`. The legacy readers (`read_cos`, `read_stis`, `read_fos`,
+`read_hsla`, `read_sdssrm`) are untouched.
+
+| fix | change |
+|---|---|
+| A | every detector row is read, not just `data['WAVELENGTH'][0]`. Each row becomes its own entry in the exposure stack — segments are neither contiguous nor sorted, and `coadd.py` already handles independent overlapping exposures. E140M echelle orders stay concatenated as before. |
+| B | an exposure that `Cut_Edge_Pix` rejects is skipped and reported instead of aborting the object |
+| C | FOS `accum_flag` degrades to a single comparison when a file has only two readout groups |
+
+The `_COS_EXPOSURE_CAP` stopgap still applies to **files**, before rows are
+expanded, so "cap = 100" still means 100 exposures (now 200 rows).
+
+**`rebinning/spec_morph.py`** — `cont_filtered()`:
+
+| fix | change |
+|---|---|
+| D | if every pixel of the exposure falls inside an emission-line window, return a flat continuum at the exposure's own median flux instead of 0.0. A trailing guard also fills any leftover zero/non-finite continuum pixel. |
+
+**`ica/run_all_objects.py`** — added `--results-file` and `--plots-dir`. Defaults
+reproduce the previous hardcoded paths exactly; they exist so a re-run against a new
+rebin directory cannot overwrite the results and plots of a previous run.
+
+### Verification
+
+`coadd.rebin()` run through the edited modules reproduces the output of the
+monkey-patched prototype (`diagnostics/rebin_patched.py`, validated on 95 objects)
+**bit-for-bit** for `LEDA 3095694` (COS), `LB 1727` (COS), `PKS2216-03` (FOS),
+`Mrk 1502` (FOS) and `4C 11.72` (STIS).
+
+### Expected impact (measured before the run — see the investigation doc)
+
+- 213 of 234 COS pairs (91%) change; 21 single-row COS pairs and all STIS/FOS
+  spectra except the 18 the fixes rescue are unchanged.
+- Exposure rows into the co-add: 4,619 → 9,395 over the affected pairs (x2.03).
+- Rest-frame coverage: median +174 A, +78 A inside the ICA range 1260-3000 A.
+- S/N in already-covered wavelengths: median x1.03 (10th-90th 0.94-1.17).
+  The gain is coverage, not depth — FUVA and FUVB barely overlap.
+
+### Note on scope
+
+AP chose "COS only, copy FOS/STIS across". In the end all 615 pairs were re-run:
+fix D can fire on any instrument whenever an exposure lands inside an emission
+window, and that cannot be predicted from headers alone, so copying FOS/STIS
+across risked silently keeping a stale spectrum. Every FOS/STIS spectrum that
+comes out identical is the same outcome as copying it; the diff report says which
+actually changed.
+
+### Known pre-existing issue hit during the run
+
+`run_rebin.py` prints a `→` character, which raises `UnicodeEncodeError` when stdout
+is redirected to a file on Windows (cp1252). Worked around with
+`PYTHONIOENCODING=utf-8`; not fixed in the source.
+
+---
+
+## 2026-09-23 — Two ICA measurement defects fixed; ICA re-run
+
+Approved by AP. Full evidence: `diagnostics/CIV_EW_Indexing_Investigation.md` and
+`diagnostics/Collapsed_Fits_Investigation.md`.
+
+### Defect 1 — C IV equivalent width measured against the wrong continuum
+
+`continuum` is built full-length from `wave_r` (the ICA grid, starting at 1260 A), but
+the EW loop indexed it with `i` running over the 1500-1600 A subset. The continuum was
+therefore read ~240 A too blue. Quasar continua fall with wavelength, so the divisor was
+always too large and **every EW was biased low**.
+
+Inherited verbatim from Trevor's `get_CIV`; present in all copies in the untouched
+`HST/` archive. His saved `CIV_EW_tvm` reproduces the buggy value to a median of 0.50 A
+(the corrected value differs by 19.16 A), so his published EWs carry it too.
+
+**Fix:** mask once outside the loop (`cont_EW = continuum[EW]`) and index that.
+Indexing `continuum[EW][i]` inside the loop would work but re-masks every iteration.
+
+| file | function | lines |
+|---|---|---|
+| `ica/manual_fix.py` | `get_CIV_parameters` | ~518/521 (CSV values) |
+| `ica/manual_fix.py` | `plot_CIV_analysis` | ~644/646 (plot label) |
+| `ica/run_ica.py` | `get_CIV` | ~144/146 (plot path) |
+
+### Defect 2 — fits collapsing to an all-zero reconstruction
+
+`ICA_fit` receives `ivar = 1/errs**2`. Pixels with an error of ~0 get ivar ~1e29 and act
+as infinitely strong constraints, so least squares returns all-zero component weights.
+Healthy spectra have max(ivar)/median(ivar) ~5; collapsed ones ~1e29.
+
+**Fix:** in `ICA_fit` (`ica/run_ica.py`), drop non-finite ivar and any ivar above
+`_IVAR_MAX_FACTOR = 1e4` x median. Placed inside `ICA_fit` because every call site
+funnels through it. Not caused by the negative-error pixels in the rebinned spectra —
+those are squared into ivar and merely down-weight themselves.
+
+### Re-run and result
+
+```
+python -m ica.run_all_objects --master --rebin-dir RebinnedSpec_master_v2 \
+    --results-file ICA_Results_Rebin_master_v2_fixed.csv \
+    --plots-dir ICA_Plots_Rebin_master_v2_fixed
+```
+
+```
+degenerate rows (EW = 0/NaN):  47 -> 6     41 recovered, 0 regressions
+fits produced:                517 -> 517   exception list byte-identical
+EW, 470 objects good in both: median ratio 1.495, increased for 92%
+blueshift: unchanged for 34%, median change 137 km/s where it moves
+```
+
+Attribution over the 50 previously-degenerate fits: the ivar guard recovered 27 of 30
+class-B, and **the EW fix recovered 12 of 16 class-C** — objects whose line had been
+sitting just below a continuum that was read too high, so their `EW = 0` was an
+artefact, not a non-detection.
+
+### Outstanding
+
+- A **quality cut independent of fit success** is needed:
+  `2MASS J10051419+5302398_COS` now returns `EW = 0.013 A` from a spectrum with 0%
+  coverage of the 1260-3000 A fitting range.
+- Three of the 6 remaining `EW = 0` rows have good S/N and need visual inspection:
+  `PG0953+415_STIS` (S/N 9.4, 100% coverage), `LEDA 138607_COS` (11.97),
+  `Ton 488_COS` (7.71).
+- The overrides pass (`--overrides-only`) has not been re-run against the fixed code.
+- Backups of the two edited modules: `diagnostics/_backup_manual_fix.py`,
+  `diagnostics/_backup_run_ica.py`.
+
+---
+
+## 2026-09-29 — Regression fixed: `cont_filtered()` fell back to a continuum of 1.0
+
+Found when AP pointed out that two objects reported as high-S/N rescues have visibly
+bad data across C IV.
+
+**Bug** (introduced 2026-09-10 in this repo's own fix): the trailing guard in
+`rebinning/spec_morph.py` `cont_filtered()` read
+
+```python
+med_flux[bad] = np.median(med_flux[good]) if good.any() else 1.0
+```
+
+`else 1.0` fires when the continuum is NaN at every pixel, which happens for exposures
+almost (but not entirely) inside an emission window — the all-emission guard at the top
+of the function does not catch those. `coadd.rebin()` then divides the exposure by 1.0,
+leaving it un-normalised and ~1e13 below its neighbours in the co-add.
+
+**Impact:** 36 of 594 spectra in `RebinnedSpec_master_v2/` carry an un-normalised block
+(0 of 576 in the pre-fix `RebinnedSpec_master/`); 18 overlap the C IV window. It is also
+the origin of 30 of the 47 collapsed ICA fits — the block reads as zero flux with zero
+error, giving `ivar = 1/err**2` ~ 1e29, which pins the fit at zero weights.
+
+**Fix:** new `_flat_continuum_level(flux)` helper returns the exposure's own median flux
+(or its absolute median, and only 1.0 if the exposure is genuinely empty). Used by both
+the all-emission early return and the trailing guard.
+
+**Not yet re-run:** regenerating the 36 requires the raw data on F:, which is no longer
+attached. Exclusion list: `diagnostics/affected_unnormalised.csv`.
+
+**Consequences for earlier conclusions:**
+- The "28 of 34 rescued by the ivar guard" result is void — 28 of those 29 objects sit
+  on affected spectra.
+- S/N figures computed as `median(|flux/error|)` inside an affected block are inflated
+  (raw flux over raw error): `MR 2251-178_COS` reads 34.1 but is empirically 6.2.
+- The C IV equivalent-width fix (2026-09-23) is independent and unaffected.
+
+---
+
+## 2026-09-29 — Round summary written
+
+`PIPELINE_CHANGES_2026-09.md` (repo root) consolidates this round of fixes into one
+self-contained document: current output files, the seven defects and their effects,
+the 36 spectra still awaiting re-rebinning, caveats for comparison figures, and a list
+of statements in the earlier logs that have been superseded. `CLAUDE.md` → Known Issues
+now points at it first.
+
+Helper written: `diagnostics/usable_objects_v2_fixed.txt` — the 478 objects safe to use
+from `ICA_Results_Rebin_master_v2_fixed.csv` (517 fits, minus 35 carrying an
+un-normalised block and 4 further with no data at C IV).

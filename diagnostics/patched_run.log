@@ -1,0 +1,86 @@
+2MASS J08042265+1926386 COS
+2MASS J09224506+3032585 COS
+2MASS J10423110+2213003 COS
+2MASS J11190530+5925140 COS
+2MASS J11493175+2230285 COS
+2MASS J12140133+4048233 COS
+2MASS J12210891+4228388 COS
+2MASS J12323582+0603098 COS
+2MASS J12465925+3126196 COS
+2MASS J12554763+4012302 COS
+2MASS J13042289+2055107 COS
+2MASS J14314604+0301444 COS
+  skipped 15 unusable exposure rows: lcld16kyq-NUVA (No good pixels found for 2MASS J14314604+0301444 - lcld16kyq-NUVA - all pixels failed basic quality cut); lcld16kyq-NUVB (No good pixels found for 2MASS J14314604+0301444 - lcld16kyq-NUVB - all pixels failed basic quality cut); lcld16kyq-NUVC (No good pixels found for 2MASS J14314604+0301444 - lcld16kyq-NUVC - all pixels failed basic quality cut)
+2MASS J14550246+0850022 COS
+2MASS J16151905-0936132 COS
+2MASS J17185029+3042017 COS
+3C 273 FOS
+3C 286 STIS
+4C 11.72 STIS
+7C 081438.10+224634.00 COS
+7C 143544.20+505906.00 COS
+AKN120 FOS
+CLASS-B1152+199-ABS01 COS
+ESO 31-8 COS
+ESO 462-9 COS
+ESO 499-41 COS
+FBQS J2226-0901 COS
+ICRF J074110.7+311200 STIS
+ICRF J154743.5+205216 COS
+ICRF J213745.1-143255 COS
+J04561-2159 COS
+J0833+1005-OFFNUCLEUS COS
+LB 9388 COS
+LBQS 1340-0038 COS
+LEDA 2100384 COS
+LEDA 2149945 COS
+LEDA 29208 FOS
+LEDA 3095694 COS
+LEDA 3096578 COS
+LEDA 34449 STIS
+LEDA 88835 COS
+LEDA 89176 COS
+MR 2251-178 FOS
+Mrk 1018 FOS
+Mrk 1044 COS
+Mrk 1179 COS
+Mrk 1298 COS
+Mrk 1502 COS
+Mrk 352 COS
+NGC 3227 COS
+NGC 3516 COS
+  skipped 16 unusable exposure rows: lf3f01axq-FUVA (No good pixels found for NGC 3516 - lf3f01axq-FUVA - all pixels failed basic quality cut); lf3f01axq-FUVB (No good pixels found for NGC 3516 - lf3f01axq-FUVB - all pixels failed basic quality cut); lf3f01b2q-FUVA (No good pixels found for NGC 3516 - lf3f01b2q-FUVA - all pixels failed basic quality cut)
+NGC 3783 COS
+  skipped 16 unusable exposure rows: lf3701biq-FUVA (No good pixels found for NGC 3783 - lf3701biq-FUVA - all pixels failed basic quality cut); lf3701biq-FUVB (No good pixels found for NGC 3783 - lf3701biq-FUVB - all pixels failed basic quality cut); lf3701bmq-FUVA (No good pixels found for NGC 3783 - lf3701bmq-FUVA - all pixels failed basic quality cut)
+NGC 5548 COS
+NGC-4051 COS
+NGC-7469 COS
+NGC4395 COS
+PB 1154 COS
+PB 3493 COS
+PG 1216+069 COS
+PG1322+659 FOS
+PG2308+098 FOS
+PKS1055+20 FOS
+PKS2216-03 FOS
+Q1130+6026 COS
+QSO B1103-006 FOS
+QSO B1626+5529 FOS
+QSO B2128-123 COS
+QSO J1016+4706 COS
+QSO J1422-0001 COS
+RX J1131.6+1557 COS
+SDSS J132921.75+144431.2 COS
+SDSSJ1602+1410 COS
+Ton 1565 FOS
+Ton 202 COS
+  skipped 28 unusable exposure rows: ley213e8q-FUVA (No good pixels found for Ton 202 - ley213e8q-FUVA - all pixels failed basic quality cut); ley213e8q-FUVB (No good pixels found for Ton 202 - ley213e8q-FUVB - all pixels failed basic quality cut); ley213eeq-FUVA (No good pixels found for Ton 202 - ley213eeq-FUVA - all pixels failed basic quality cut)
+Ton 202 STIS
+Ton 202 FOS
+Ton 469 COS
+  skipped 16 unusable exposure rows: leys13blq-FUVA (No good pixels found for Ton 469 - leys13blq-FUVA - all pixels failed basic quality cut); leys13blq-FUVB (No good pixels found for Ton 469 - leys13blq-FUVB - all pixels failed basic quality cut); leys13bqq-FUVA (No good pixels found for Ton 469 - leys13bqq-FUVA - all pixels failed basic quality cut)
+Ton S 210 STIS
+UGC 12163 COS
+US 1867 COS
+
+patched rebin: 79 written, 0 failed -> C:\Users\Alexandros Pratsos\PycharmProjects\Summer 2024\Richards\HST Paper\RebinnedSpec_master_patched

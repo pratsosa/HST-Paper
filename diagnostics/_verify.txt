@@ -1,0 +1,169 @@
+V== EW fix: new pipeline vs previously-measured "corrected" value
+
+=== Processing 0115+027_FOS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.48585417396840186
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.014824966741201
+Results [baseline]: CIV_blue=197.5 km/s, CIV_EW=295.94 A, F2500=4.859e-01
+V  0115+027_FOS           new EW= 295.943 | expected corrected= 295.943 (as-coded was  258.687)  match=True
+
+=== Processing LEDA 3095694_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.41631016718753105
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.709352941669031
+Results [baseline]: CIV_blue=335.5 km/s, CIV_EW=131.97 A, F2500=4.163e-01
+V  LEDA 3095694_COS       new EW= 131.969 | expected corrected= 131.969 (as-coded was  104.756)  match=True
+
+=== Processing Mrk 1298_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.540626919288211
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.5716955600502187
+Results [baseline]: CIV_blue=-493.6 km/s, CIV_EW=19.92 A, F2500=5.406e-01
+V  Mrk 1298_COS           new EW=  19.924 | expected corrected=  19.924 (as-coded was   12.318)  match=True
+
+=== Processing 1401+0951_FOS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.4270778108340905
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.097404140140583
+Results [baseline]: CIV_blue=611.4 km/s, CIV_EW=91.65 A, F2500=4.271e-01
+V  1401+0951_FOS          new EW=  91.646 | expected corrected=  91.646 (as-coded was   59.912)  match=True
+V== ivar guard: objects that previously returned blueshift 9574.1
+
+=== Processing MR 2251-178_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.5845258434081876
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.4356049659043446
+Results [baseline]: CIV_blue=197.5 km/s, CIV_EW=85.39 A, F2500=5.845e-01
+V  MR 2251-178_COS                blueshift=    197.5  EW=   85.39  recovered
+
+=== Processing NGC 5548_STIS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.9465939517318112
+Results [baseline]: CIV_blue=3834.0 km/s, CIV_EW=6.33 A, F2500=9.706e-01
+V  NGC 5548_STIS                  blueshift=   3834.0  EW=    6.33  recovered
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.7263812314892976
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0818154539306946
+Results [baseline]: CIV_blue=-78.8 km/s, CIV_EW=12.63 A, F2500=7.264e-01
+V  NGC 985_COS                    blueshift=    -78.8  EW=   12.63  recovered
+
+=== Processing Mrk 1513_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.49616547385900667
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.418354949009756
+Results [baseline]: CIV_blue=128.4 km/s, CIV_EW=62.16 A, F2500=4.962e-01
+V  Mrk 1513_COS                   blueshift=    128.4  EW=   62.16  recovered
+
+=== Processing 7C 081438.10+224634.00_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.34823903622130975
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.781735356537413
+Results [baseline]: CIV_blue=335.5 km/s, CIV_EW=117.33 A, F2500=3.482e-01
+V  7C 081438.10+224634.00_COS     blueshift=    335.5  EW=  117.33  recovered
+V== the 6 bad-data objects (expected to still fail)
+
+=== Processing 2MASS J10051419+5302398_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: -163.80165360054633
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 2.6276369144508376
+Results [baseline]: CIV_blue=-562.8 km/s, CIV_EW=0.01 A, F2500=-1.638e+02
+V  2MASS J10051419+5302398_COS    blueshift=   -562.8 EW=0.01288117675706232
+
+=== Processing 3C 95_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0901315783113597
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+V  3C 95_COS                      blueshift=   9574.1 EW=nan
+
+=== Processing QSO J1422-0001_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.845289726929599
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+V  QSO J1422-0001_COS             blueshift=   9574.1 EW=nan

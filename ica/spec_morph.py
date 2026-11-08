@@ -397,6 +397,37 @@ def emission_lines2(wavelength):
            NeV | NeVI | OII | HeI | HD | HG | HB_OIII | HA )
 
 def cont_filtered(wave, flux, z, Identifier):
+    # AP 2026-09-10: guard against the case where no pixel has a measurable
+    # continuum. Below, med_flux[k] is the median of the non-emission flux within
+    # 100 A of pixel k; if every pixel of the spectrum is emission-masked (or has
+    # no finite non-emission neighbour), med_flux is NaN end to end, the NaN-run
+    # detector produces a single run with jp=0 AND jf=len-1, and the interpolation
+    # below indexes med_flux[jf+1] -- one past the end. That raised
+    # "IndexError: index N is out of bounds for axis 0 with size N" and the object
+    # got no ICA fit at all.
+    #
+    # This is the same failure mode fixed in rebinning/spec_morph.py (see
+    # diagnostics/CIV_Data_Loss_Investigation.md, bug B). It surfaced here on
+    # narrow spectra recovered by those fixes, e.g. 4C 11.72_STIS, which spans
+    # rest 1199-1553 A -- starting inside Ly-alpha and ending inside C IV.
+    #
+    # Deliberate difference from the rebinning copy: that one ALSO fills any
+    # leftover zero/non-finite continuum pixel, because coadd.py divides by the
+    # continuum and a zero annihilates the exposure. Here the guard is limited to
+    # the all-NaN case, so it can only convert a crash into a result -- it cannot
+    # change any fit that already succeeds.
+    #
+    # A flat continuum is a placeholder, not a measurement: a spectrum with no
+    # line-free wavelength has no continuum to measure. Fits produced this way
+    # need visual inspection before being trusted.
+    em_all = emission_lines2(wave/(1+z))
+    if em_all.all():
+        finite = np.isfinite(flux) & (flux != 0)
+        med = np.nanmedian(flux[finite]) if finite.any() else np.nan
+        if not np.isfinite(med) or med == 0:
+            med = 1.0
+        return np.full(len(wave), med)
+
     #Ignore BAL troughs
     bal = np.zeros(len(wave))
     if Identifier in BAL_regions.Troughs:
@@ -433,7 +464,12 @@ def cont_filtered(wave, flux, z, Identifier):
     #print(len(wave))
     #interpolate across emission-line regions
     for i in range(len(jp_list)):
-        if jp_list[i]==0:
+        if jp_list[i]==0 and jf_list[i]==len(wave)-1:
+            # AP 2026-09-10: NaN run spans the whole array -- neither neighbour
+            # exists. Fall back to a flat continuum (see note at top of function).
+            valid = med_flux[~np.isnan(med_flux)]
+            med_flux[:] = np.nanmedian(valid) if len(valid) else 1.0
+        elif jp_list[i]==0:
             #if first or last
             med_flux[jp_list[i]:jf_list[i]+1] = med_flux[jf_list[i]+1]
         elif jf_list[i]==len(wave)-1:

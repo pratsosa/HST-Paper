@@ -1,0 +1,58 @@
+SPYFIT === RebinnedSpec_master
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.49  sum|w|=0.148
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.96  sum|w|=0.3216
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.9  sum|w|=0.2505
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.49  sum|w|=0.1481
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.96  sum|w|=0.3216
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.9  sum|w|=0.2505
+Debug f2500_ica from f2500_ICA function: 0.6061073591861689
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.43  sum|w|=0.5278
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.63  sum|w|=1.254
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.95  sum|w|=0.8809
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.43  sum|w|=0.5277
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.63  sum|w|=1.254
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=37.95  sum|w|=0.881
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.498997229286628
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.49  sum|w|=0.1481
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.96  sum|w|=0.3216
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=39.9  sum|w|=0.2505
+Results [baseline]: CIV_blue=266.5 km/s, CIV_EW=78.53 A, F2500=6.061e-01
+SPYFIT === RebinnedSpec_master_v2
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=1.049e+34  sum|w|=2.197e-05
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2.732e+35  sum|w|=0.0001463
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=1.433e+30  sum|w|=3.675e-06
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2516  sum|w|=0
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2282  sum|w|=0
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2529  sum|w|=0
+Debug f2500_ica from f2500_ICA function: 0.0
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=1.956e+30  sum|w|=1.221e-05
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=4.641e+34  sum|w|=0.0003235
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=6.531e+28  sum|w|=3.242e-06
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2516  sum|w|=0
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2282  sum|w|=0
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2529  sum|w|=0
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0818154539306946
+SPYFIT npix= 2787  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2516  sum|w|=0
+SPYFIT npix= 2736  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2282  sum|w|=0
+SPYFIT npix= 2770  nan_spec=  81  ivar: nan=   0 inf=   0  redchi=2529  sum|w|=0
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00

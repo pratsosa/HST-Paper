@@ -1,0 +1,84 @@
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.6061073591861689
+MORPH ter NGC 985    cont_spec: min=-1.545  min|.|=0.0002792  n<=0=315 | morph_coeff: min=-913.6 max=2212 | out flux min=-1.679e+04 max=9.711e+04
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.498997229286628
+Results [baseline]: CIV_blue=266.5 km/s, CIV_EW=78.53 A, F2500=6.061e-01
+
+=== Processing Mrk 352_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 1.04071746021488
+MORPH ter Mrk 352    cont_spec: min=0.5975  min|.|=0.5975  n<=0=0 | morph_coeff: min=3.631 max=5.299 | out flux min=-0.09203 max=19.63
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.418417612373634
+Results [baseline]: CIV_blue=-1047.7 km/s, CIV_EW=644.46 A, F2500=1.041e+00
+
+=== Processing LEDA 3095694_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.5702853333327439
+MORPH ter LEDA 3095  cont_spec: min=0.8001  min|.|=0.8001  n<=0=0 | morph_coeff: min=3.462 max=4.719 | out flux min=-4.77 max=151.9
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 4.084901978360329
+Results [baseline]: CIV_blue=-9.7 km/s, CIV_EW=77.72 A, F2500=5.703e-01
+
+=== Processing NGC 985_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+MORPH _v2 NGC 985    cont_spec: min=-4.441  min|.|=0.002381  n<=0=501 | morph_coeff: min=-654.4 max=285.6 | out flux min=-2.19e+04 max=3.058e+06
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.0818154539306946
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+
+=== Processing Mrk 352_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.0
+MORPH _v2 Mrk 352    cont_spec: min=0.9074  min|.|=0.9074  n<=0=0 | morph_coeff: min=2.788 max=3.722 | out flux min=-0.1807 max=550.4
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.4580292398574857
+Results [baseline]: CIV_blue=9574.1 km/s, CIV_EW=nan A, F2500=0.000e+00
+
+=== Processing LEDA 3095694_COS [baseline] ===
+File column names: ColDefs(
+    name = 'Rest-frame Wavelength'; format = 'D'
+    name = 'Coadded Flux (Arbitrary Units)'; format = 'D'
+    name = 'Coadded Flux Errors'; format = 'D'
+    name = 'Bad Pixel Mask'; format = 'D'
+    name = 'Redshift'; format = 'D'
+)
+Debug f2500_ica from f2500_ICA function: 0.41631016718753105
+MORPH _v2 LEDA 3095  cont_spec: min=0.8534  min|.|=0.8534  n<=0=0 | morph_coeff: min=3.245 max=3.884 | out flux min=-0.1775 max=391.3
+Using get_f2500 function to compute f2500 directly.
+Median morph_coeff: 3.709352941669031
+Results [baseline]: CIV_blue=335.5 km/s, CIV_EW=104.76 A, F2500=4.163e-01

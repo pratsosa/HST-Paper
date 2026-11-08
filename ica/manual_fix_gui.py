@@ -83,68 +83,18 @@ class GuiFixProcessor(ICAManualFixProcessor):
     (setup_object -> main_ICA -> get_CIV_parameters); only the source of the
     mask/comps overrides differs, so a GUI fit == the batch fit for the same
     override. No matplotlib is touched here, so it is safe off the UI thread.
+
+    The numerical engine now lives on the parent as
+    ICAManualFixProcessor.fit_with_overrides(); fit_for_gui() is a thin
+    keyword-order adapter so the GUI and the batch runner share one code path.
     """
 
     def fit_for_gui(self, name, mask_ranges=None, mask_pixels=None, comps_use=None,
                     unmask_ranges=None, unmask_pixels=None):
-        mask_ranges = mask_ranges or []
-        mask_pixels = mask_pixels or []
-        unmask_ranges = unmask_ranges or []
-        unmask_pixels = unmask_pixels or []
-
-        # Reload from disk every fit -> guaranteed-clean mask state, no cross-fit
-        # mutation bugs. Cheap next to the ~5-10 s fit itself.
-        wave, flux, z, errs, mask, spec_name = self.setup_object(name)
-        mask = np.asarray(mask, dtype=float).copy()
-
-        for lo, hi in mask_ranges:
-            mask[(wave >= lo) & (wave <= hi)] = 1
-        for wl in mask_pixels:
-            mask[np.argmin(np.abs(wave - wl))] = 1
-
-        cu = None if comps_use in (None, "", "auto") else comps_use
-
-        (wave_arb, flux_arb, errs_arb, mask_arb,
-         wave_ica, flux_ica, f2500) = run_ica.main_ICA(
-            wave, flux, errs, mask, z, name="", ica_path=None, comps_use=cu)
-
-        # Force-unmask pixels the pipeline masked (NAL/BAL/input bad). Those masks
-        # are recomputed inside main_ICA, so honouring an unmask means re-fitting
-        # with them cleared. We reuse main_ICA's own outputs: flux_arb carries the
-        # *real* (not median-replaced) flux at NAL pixels, which is exactly what we
-        # want at an unmasked pixel; still-masked pixels are ignored either way.
-        # When nothing is unmasked we skip this entirely -> identical to the batch.
-        if unmask_ranges or unmask_pixels:
-            mask_ref = np.asarray(mask_arb, dtype=float).copy()
-            for lo, hi in unmask_ranges:
-                mask_ref[(wave_arb >= lo) & (wave_arb <= hi)] = 0
-            for wl in unmask_pixels:
-                mask_ref[np.argmin(np.abs(wave_arb - wl))] = 0
-
-            wave_ica2, flux_ica2 = run_ica.get_ICA(
-                wave_arb, flux_arb, errs_arb, mask_ref, z,
-                ica_path=None, use_priors=False, comps_use=cu)
-
-            # Rescale f2500 by the original fit's real-unit factor at 2500 A
-            # (norm/morph scaling is fixed by the data, not the fit).
-            i0 = np.argmin(np.abs(wave_ica - 2500.))
-            i2 = np.argmin(np.abs(wave_ica2 - 2500.))
-            if flux_ica[i0]:
-                f2500 = float(flux_ica2[i2] * (f2500 / flux_ica[i0]))
-            wave_ica, flux_ica = wave_ica2, flux_ica2
-            # Show the mask actually used for the fit so unmasked pixels no longer
-            # render as NAL/BAL (they were set to 0 in mask_ref).
-            mask_arb = mask_ref
-
-        civ_blue, civ_ew = self.get_CIV_parameters(
-            wave_arb, flux_arb, wave_ica, flux_ica, name)
-
-        return dict(
-            name=name, spec_name=spec_name, z=float(z),
-            wave_arb=wave_arb, flux_arb=flux_arb, errs_arb=errs_arb, mask_arb=mask_arb,
-            wave_ica=wave_ica, flux_ica=flux_ica,
-            f2500=float(f2500), civ_blue=float(civ_blue), civ_ew=float(civ_ew),
-        )
+        return self.fit_with_overrides(
+            name, mask_ranges=mask_ranges, mask_pixels=mask_pixels,
+            unmask_ranges=unmask_ranges, unmask_pixels=unmask_pixels,
+            comps_use=comps_use)
 
 
 # ---------------------------------------------------------------------------
